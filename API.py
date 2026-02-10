@@ -2,6 +2,7 @@ from fastapi import FastAPI
 import uvicorn
 import database, embedder
 from fastapi.middleware.cors import CORSMiddleware
+import llm_client
 
 app = FastAPI()
 
@@ -19,7 +20,7 @@ def ask(q: str):
 
     return {
         "question": q,
-        "answer": ask_rag(q)
+        "answer": llm_client.ask_rag(q)
     }
 
 if __name__ == "__main__":
