@@ -20,11 +20,11 @@ embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def get_embedding(text: str) -> List[float]:
-    vector = embedder.encode(text)
+    vector = embedding().encode(text)
 
     return vector.tolist()
 
-def embedder():
+def embedding():
 
     with open(DATA_FILE, "r", encoding="utf-8") as f: # TODO Add file path
         text = f.read()
