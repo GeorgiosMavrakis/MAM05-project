@@ -16,7 +16,14 @@ from typing import List
 
 
 # chunker.py
-def chunk_text(text: str, rx_cui: str, section: str) -> List[{"chunk_id":str,"text":str,"rx_cui":str,"section":str}]:
-    # split on sentence boundaries, accumulate ~200 words per chunk
-    # generate chunk_id e.g., f"{rx_cui}-{section}-{i}"
-    pass
+def chunk_text(text: str) -> List[str]:
+
+    chunks = []
+    start = 0
+
+    while start < len(text):
+        end = start + 500 # 500 chunk size
+        chunks.append(text[start:end])
+        start = end - 50 # 50 chunk overlap
+
+    return chunks
