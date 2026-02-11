@@ -12,13 +12,58 @@ Example: returns text that includes a list of chunk ids and a short patient-frie
 Notes: append received tokens for logging; perform basic sanitization.
 """
 from typing import List
+import openai
+import database
+import requests
+from dotenv import load_dotenv
+import os
 
-# llm_client.py
-def call_llm(prompt: str) -> {"text": str, "tokens": int}:
-    # call API using LLM_API_KEY, handle rate limits/backoff
-    # return raw response
-    pass
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 
-def validate_response(response_text: str, required_chunk_ids: List[str]) -> {"ok":bool,"issues":List[str]}:
-    # ensure chunk ids referenced, no unsupported factual claims (best-effort)
-    pass
+def ask_rag(question: str):
+    """
+    Query the RAG system with a question.
+    Returns the LLM response as a string.
+    """
+    try:
+        docs = database.search_db(question)
+        context = "\n\n".join(docs)
+
+        prompt = f"""Use only the context to answer.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+
+        endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {API_KEY}"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.2
+        }
+
+        res = requests.post(endpoint, json=payload, headers=headers)
+        res.raise_for_status()
+        data = res.json()
+
+        return data["choices"][0]["message"]["content"]
+
+    except requests.exceptions.RequestException as e:
+        return f"Error calling LLM: {str(e)}"
+    except KeyError:
+        return "Error: Unexpected response format from LLM"

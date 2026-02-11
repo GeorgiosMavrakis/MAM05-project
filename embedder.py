@@ -13,10 +13,38 @@ Notes: batch embedding offline for entire corpus; use same model for query embed
 """
 from typing import List
 from sentence_transformers import SentenceTransformer
-import config
+import config, chunker, database
+import os
 
-model = SentenceTransformer(config.EMBED_MODEL)
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
-    # batch model.encode(texts, batch_size=EMBED_BATCH, show_progress_bar=True)
-    pass
+
+def get_embedding(text: str) -> List[float]:
+    vector = embedding().encode(text)
+
+    return vector.tolist()
+
+def embedding():
+
+    with open(DATA_FILE, "r", encoding="utf-8") as f: # TODO Add file path
+        text = f.read()
+
+    chunks = chunker.chunk_text(text)
+
+    ids = []
+    docs = []
+    embeds = []
+
+    for i, chunk in enumerate(chunks):
+
+        ids.append(str(i))
+        docs.append(chunk)
+        embeds.append(get_embedding(chunk))
+
+    database.collection.add(
+        ids=ids,
+        documents=docs,
+        embeddings=embeds
+    )
+    database.chroma_client.persist()
+
