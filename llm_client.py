@@ -15,6 +15,11 @@ from typing import List
 import openai
 import database
 import requests
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
 
 def ask_rag(question: str):
     """
@@ -40,7 +45,7 @@ Answer:
 
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer YOUR_API_KEY_HERE"  # TODO Add API key
+            "Authorization": f"Bearer {API_KEY}"
         }
 
         payload = {

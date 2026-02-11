@@ -1,4 +1,14 @@
 # MAM05-project
+
+Starting Servers:
+
+API SERVER: 
+uvicorn API:app --host 0.0.0.0 --port 8000 --reload
+
+UI Server:
+cd rag-ui
+npm run dev
+
 End-to-end pipeline (runtime flow — concise)
 
 1. User input (free text) → UI_main receives /explain.
@@ -22,3 +32,4 @@ End-to-end pipeline (runtime flow — concise)
 10. UI_main returns structured JSON: patient-friendly summary(s), chunk provenance (source URLs + chunk ids), flags and confidence metrics.
 
 11. logging_eval.log_query stores all artifacts for auditing and later evaluation.
+
