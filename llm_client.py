@@ -16,15 +16,16 @@ import openai
 import database
 import requests
 
-# llm_client.py
 def ask_rag(question: str):
+    """
+    Query the RAG system with a question.
+    Returns the LLM response as a string.
+    """
+    try:
+        docs = database.search_db(question)
+        context = "\n\n".join(docs)
 
-    docs = database.search_db(question)
-
-    context = "\n\n".join(docs)
-
-    prompt = f"""
-Use only the context to answer.
+        prompt = f"""Use only the context to answer.
 
 Context:
 {context}
@@ -35,26 +36,29 @@ Question:
 Answer:
 """
 
-    # Still using OpenAI for generation (cheap)
-    endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
+        endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer YOUR_API_KEY_HERE"  # TODO Add API key
-    }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer YOUR_API_KEY_HERE"  # TODO Add API key
+        }
 
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are helpful."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.2
-    }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.2
+        }
 
-    res = requests.post(endpoint, json=payload, headers=headers)
-    res.raise_for_status()
-    data = res.json()
+        res = requests.post(endpoint, json=payload, headers=headers)
+        res.raise_for_status()
+        data = res.json()
 
-    # The exact path may depend on the proxy response format
-    return data["choices"][0]["message"]["content"]
+        return data["choices"][0]["message"]["content"]
+
+    except requests.exceptions.RequestException as e:
+        return f"Error calling LLM: {str(e)}"
+    except KeyError:
+        return "Error: Unexpected response format from LLM"
