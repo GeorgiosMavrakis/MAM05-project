@@ -1,5 +1,5 @@
 """
-RETRIEVER MODULE
+RETRIEVER MODULE - BETA
 Handles retrieval pipeline for FDA drug information RAG system.
 
 Features:
