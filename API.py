@@ -20,13 +20,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def startup():
-    if database.collection.count() == 0:
-        embedder.embedding()
-    else:
-        print("DB loaded.")
-
 @app.get("/ask")
 def ask(q: str):
     return {
