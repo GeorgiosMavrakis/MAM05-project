@@ -24,8 +24,7 @@ OUTPUT_FILE = "chunks_with_embeddings_whole.jsonl"
 # OPTIMIZED SETTINGS FOR SPEED
 BATCH_SIZE = 10000  # Process 10k at a time
 ENCODING_BATCH = 512  # Much larger batch for GPU
-FLOAT_PRECISION = 2  # 2 decimals is enough (saves space and time)
-USE_FP16 = True  # Use half precision for 50% size reduction
+FLOAT_PRECISION = 4  # 4 decimals is enough (saves space and time)
 
 
 # ============================================
@@ -266,4 +265,3 @@ if __name__ == "__main__":
     verify_embeddings_efficient()
 
     print("\n✓ Next: Upload to Qdrant")
-
