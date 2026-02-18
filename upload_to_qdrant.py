@@ -33,7 +33,7 @@ INPUT_FILE = "chunks_with_embeddings_whole.jsonl"
 
 # Optimized for large files
 BATCH_SIZE = 1000  # Increased from 100 for better throughput
-NUM_UPLOAD_THREADS = 4  # Parallel upload threads
+NUM_UPLOAD_THREADS = 8  # Parallel upload threads
 VECTOR_SIZE = 384
 SKIP_LINE_COUNT = True  # Skip counting for huge files (use estimate)
 

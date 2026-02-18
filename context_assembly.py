@@ -21,6 +21,8 @@ from dotenv import load_dotenv
 import os
 from dataclasses import dataclass
 
+from retriever import retrieve
+
 load_dotenv()
 API_KEY = os.getenv("API_KEY")
 
@@ -94,13 +96,23 @@ class ContextAssembler:
             context_parts.append(f"\n[Source: {category.replace('_', ' ').title()}]")
 
             for i, chunk in enumerate(category_chunks, 1):
+                # Handle both dict and object formats
+                if isinstance(chunk, dict):
+                    chunk_id = chunk.get("id", f"chunk_{i}")
+                    chunk_text = chunk.get("text", "")
+                    chunk_score = chunk.get("score", 0.5)
+                else:
+                    chunk_id = chunk.id
+                    chunk_text = chunk.text
+                    chunk_score = chunk.similarity_score
+
                 # Include chunk ID for citation tracking
-                context_parts.append(f"\n({i}) [Chunk ID: {chunk.id}]")
-                context_parts.append(f"Score: {chunk.similarity_score:.2f}")
+                context_parts.append(f"\n({i}) [Chunk ID: {chunk_id}]")
+                context_parts.append(f"Score: {chunk_score:.2f}")
 
                 # Add chunk text with truncation if needed
-                text = chunk.text[:500]  # Limit to 500 chars per chunk
-                if len(chunk.text) > 500:
+                text = chunk_text[:500]  # Limit to 500 chars per chunk
+                if len(chunk_text) > 500:
                     text += "..."
                 context_parts.append(text)
 
@@ -226,7 +238,14 @@ class ContextAssembler:
         """Group chunks by their metadata category."""
         grouped = {}
         for chunk in chunks:
-            category = chunk.metadata.get("category", "general")
+            # Handle both dict and object formats
+            if isinstance(chunk, dict):
+                metadata = chunk.get("metadata", {})
+                category = metadata.get("category", "general")
+            else:
+                metadata = getattr(chunk, 'metadata', {})
+                category = metadata.get("category", "general")
+
             if category not in grouped:
                 grouped[category] = []
             grouped[category].append(chunk)
@@ -256,17 +275,27 @@ class ContextAssembler:
         parts = ["\n=== Information Quality Metrics ==="]
         parts.append(f"Total chunks retrieved: {len(chunks)}")
 
-        avg_score = sum(c.similarity_score for c in chunks) / len(chunks)
-        parts.append(f"Average relevance score: {avg_score:.3f}")
+        # Extract scores handling both dict and object formats
+        scores = []
+        for chunk in chunks:
+            if isinstance(chunk, dict):
+                score = chunk.get("score", 0.5)
+            else:
+                score = chunk.similarity_score
+            scores.append(score)
 
-        # Count by score tier
-        high = sum(1 for c in chunks if c.similarity_score >= 0.8)
-        medium = sum(1 for c in chunks if 0.5 <= c.similarity_score < 0.8)
-        low = sum(1 for c in chunks if c.similarity_score < 0.5)
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            parts.append(f"Average relevance score: {avg_score:.3f}")
 
-        parts.append(f"High confidence chunks: {high}")
-        parts.append(f"Medium confidence chunks: {medium}")
-        parts.append(f"Lower confidence chunks: {low}")
+            # Count by score tier
+            high = sum(1 for s in scores if s >= 0.8)
+            medium = sum(1 for s in scores if 0.5 <= s < 0.8)
+            low = sum(1 for s in scores if s < 0.5)
+
+            parts.append(f"High confidence chunks: {high}")
+            parts.append(f"Medium confidence chunks: {medium}")
+            parts.append(f"Lower confidence chunks: {low}")
 
         return "\n".join(parts)
 
@@ -363,7 +392,15 @@ Remember: Base your answer ONLY on the information provided above."""
         if not chunks:
             return "low"
 
-        avg_score = sum(c.similarity_score for c in chunks) / len(chunks)
+        scores = []
+        for chunk in chunks:
+            if isinstance(chunk, dict):
+                score = chunk.get("score", 0.5)
+            else:
+                score = chunk.similarity_score
+            scores.append(score)
+
+        avg_score = sum(scores) / len(scores) if scores else 0
 
         if avg_score >= 0.7:
             return "high"
@@ -377,16 +414,28 @@ Remember: Base your answer ONLY on the information provided above."""
         citations = []
 
         for chunk in chunks:
+            # Extract score
+            if isinstance(chunk, dict):
+                score = chunk.get("score", 0.5)
+                chunk_id = chunk.get("id", "unknown")
+                text = chunk.get("text", "")
+                metadata = chunk.get("metadata", {})
+            else:
+                score = chunk.similarity_score
+                chunk_id = chunk.id
+                text = chunk.text
+                metadata = getattr(chunk, 'metadata', {})
+
             # Only include high-relevance chunks in citations
-            if chunk.similarity_score < 0.4:
+            if score < 0.4:
                 continue
 
             citation = Citation(
-                chunk_id=chunk.id,
-                drug=chunk.metadata.get("drug_name_brand", "Unknown"),
-                category=chunk.metadata.get("category", "general"),
-                source_text=chunk.text[:200],  # First 200 chars
-                relevance_score=chunk.similarity_score
+                chunk_id=chunk_id,
+                drug=metadata.get("drug_name_brand", "Unknown"),
+                category=metadata.get("category", "general"),
+                source_text=text[:200],  # First 200 chars
+                relevance_score=score
             )
             citations.append(citation)
 
