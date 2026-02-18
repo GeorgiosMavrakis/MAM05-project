@@ -190,69 +190,86 @@ def chunk_text_smartly(text: str, max_size: int = MAX_CHUNK_SIZE, overlap: int =
     return chunks
 
 
-def create_chunks_for_drug(drug: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """
-    Create all chunks for a single drug record.
+# ============================================
+# NEW HELPER FUNCTION ← ADDED
+# ============================================
 
-    Process:
-    1. Extract drug identifiers (brand, generic, class)
-    2. For each field in the drug record:
-       - Chunk the field if it's too large
-       - Create chunk objects with metadata
-    3. Return list of all chunks for this drug
+def extract_spl_name(drug: Dict[str, Any]) -> str:
     """
+    Extract a name from spl_product_data_elements:
+    - Takes the single string element from the list
+    - Grabs the first 6 words
+    - Removes duplicates case-insensitively, keeping first occurrence (removes from end)
+    """
+    spl = drug.get("spl_product_data_elements", [])
+    if not spl or not spl[0].strip():
+        return "Unknown Drug"
+
+    words = spl[0].split()[:6]  # First 6 words
+
+    # Remove duplicates from the end, preserving first occurrence
+    seen = set()
+    deduped = []
+    for word in words:
+        lower = word.lower()
+        if lower not in seen:
+            seen.add(lower)
+            deduped.append(word)
+
+    return " ".join(deduped)
+
+
+# ============================================
+# MODIFIED FUNCTION
+# ============================================
+
+def create_chunks_for_drug(drug: Dict[str, Any]) -> List[Dict[str, Any]]:
     chunks = []
 
-    # Extract drug identifiers
     set_id = drug.get("set_id", "unknown")
     brand_name = extract_brand_name(drug)
     generic_names, drug_class = extract_generic_names_and_class(drug)
-
-    # Create searchable variations
     searchable_variations = create_searchable_variations(brand_name, generic_names)
 
-    # Process all fields
-    # Skip metadata and structural fields
+    spl_name = extract_spl_name(drug)  # ← ADDED: extract SPL-based name
+
     skip_fields = {"set_id", "id", "effective_time", "version", "openfda", "meta"}
 
     for field_name, field_value in drug.items():
-        # Skip non-content fields
         if field_name in skip_fields:
             continue
-
-        # Skip if empty
         if not field_value:
             continue
 
-        # FDA data usually has fields as lists of strings
         if isinstance(field_value, list):
-            # Combine list elements into single text
             field_text = " ".join(str(item) for item in field_value)
         elif isinstance(field_value, str):
             field_text = field_value
         else:
-            # Skip non-text fields
             continue
 
-        # Skip very short or empty fields
         if len(field_text.strip()) < 10:
             continue
 
-        # Chunk the field text
         field_chunks = chunk_text_smartly(field_text, MAX_CHUNK_SIZE, OVERLAP)
 
-        # Create chunk objects
         for idx, chunk_text in enumerate(field_chunks):
+
+            # ↓ CHANGED: was just chunk_text, now prefixed with spl_name and field_name
+            category_label = field_name.replace("_", " ")
+            enriched_text = f"{spl_name} - {category_label}: {chunk_text}"
+            # ↑ END CHANGE
+
             chunk = {
                 "id": f"{set_id}_{field_name}_{idx}",
-                "text": chunk_text,
+                "text": enriched_text,  # ← CHANGED: was chunk_text
                 "metadata": {
                     "drug_name_brand": brand_name,
                     "drug_name_generic": generic_names[0] if generic_names else "Unknown",
-                    "drug_names_all_generics": generic_names,  # All generic names
+                    "drug_names_all_generics": generic_names,
                     "drug_names_searchable": searchable_variations,
                     "drug_class": drug_class if drug_class else "Unknown",
-                    "category": field_name,  # Field type (warnings, dosage, etc.)
+                    "category": field_name,
                     "set_id": set_id,
                     "chunk_index": idx,
                     "total_chunks_in_category": len(field_chunks)
