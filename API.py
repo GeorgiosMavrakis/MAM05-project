@@ -1,9 +1,8 @@
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 import uvicorn
-import database, embedder
-from fastapi.middleware.cors import CORSMiddleware
 import llm_client
+from fastapi.middleware.cors import CORSMiddleware
 import json
 from pydantic import BaseModel
 
@@ -20,18 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def startup():
-    if database.collection.count() == 0:
-        embedder.embedding()
-    else:
-        print("DB loaded.")
-
 @app.get("/ask")
 def ask(q: str):
+    """
+    Synchronous endpoint for simple Q&A.
+    Returns full answer with citations.
+    """
+    answer = llm_client.ask_rag(q)
     return {
         "question": q,
-        "answer": llm_client.ask_rag(q)
+        "answer": answer
     }
 
 @app.post("/chat")
@@ -40,16 +37,30 @@ async def chat(message: MessageRequest):
     Endpoint for assistant-ui framework.
     Expects: {"content": "user question"}
     Returns streaming response compatible with assistant-ui
+
+    Streams JSON objects:
+    - {"type": "text", "content": "..."}
+    - {"type": "end"}
     """
     question = message.content
 
     async def generate():
-        # Stream the response back to UI
-        response_text = llm_client.ask_rag(question)
-        yield json.dumps({"type": "text", "content": response_text}) + "\n"
-        yield json.dumps({"type": "end"}) + "\n"
+        try:
+            # Stream response from RAG pipeline
+            for chunk in llm_client.ask_rag_streaming(question):
+                yield json.dumps({"type": "text", "content": chunk}) + "\n"
+
+            # Send end signal
+            yield json.dumps({"type": "end"}) + "\n"
+        except Exception as e:
+            yield json.dumps({"type": "error", "content": str(e)}) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+@app.get("/health")
+def health():
+    """Health check endpoint."""
+    return {"status": "ok", "service": "Medical RAG API"}
 
 if __name__ == "__main__":
     uvicorn.run(

@@ -1,15 +1,25 @@
 """
 Streams embeddings from chunks_with_embeddings.jsonl to Qdrant database.
-Memory-efficient batch upload.
+Optimized for large files (50GB+) with parallel uploads and fast parsing.
 """
 
 import json
 import time
+import threading
+import queue
+import orjson
 from pathlib import Path
 from typing import Iterator, Dict, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct, Distance, VectorParams
+
+try:
+    # Faster JSON parsing
+    json_loads = orjson.loads
+except ImportError:
+    json_loads = json.loads
 
 # ============================================
 # CONFIGURATION
@@ -19,30 +29,56 @@ QDRANT_URL = "http://134.98.133.84:6333"
 QDRANT_API_KEY = None
 
 COLLECTION_NAME = "drug_embeddings"
-INPUT_FILE = "chunks_with_embeddings.jsonl"
+INPUT_FILE = "chunks_with_embeddings_whole.jsonl"
 
-BATCH_SIZE = 100
+# Optimized for large files
+BATCH_SIZE = 1000  # Increased from 100 for better throughput
+NUM_UPLOAD_THREADS = 4  # Parallel upload threads
 VECTOR_SIZE = 384
+SKIP_LINE_COUNT = True  # Skip counting for huge files (use estimate)
 
 
 # ============================================
 # HELPERS
 # ============================================
 
-def count_lines(filepath: str) -> int:
-    """Count lines without loading file."""
-    count = 0
+def estimate_line_count(filepath: str, sample_lines: int = 1000) -> int:
+    """Estimate total lines by sampling first N lines."""
+    if not SKIP_LINE_COUNT:
+        count = 0
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for _ in f:
+                count += 1
+        return count
+
+    # For huge files, estimate based on file size and sample line size
+    sample_size = 0
+    sample_count = 0
     with open(filepath, 'r', encoding='utf-8') as f:
-        for _ in f:
-            count += 1
-    return count
+        for _ in range(sample_lines):
+            line = f.readline()
+            if not line:
+                break
+            sample_size += len(line.encode('utf-8'))
+            sample_count += 1
+
+    if sample_count == 0:
+        return 1000  # Default estimate
+
+    file_size = Path(filepath).stat().st_size
+    avg_line_size = sample_size / sample_count
+    estimated = int(file_size / avg_line_size)
+    print(f"  Estimated {estimated:,} lines (sampled {sample_count} lines, avg {avg_line_size:.0f} bytes)")
+    return estimated
 
 
-def stream_jsonl(filepath: str) -> Iterator[Dict]:
-    """Stream JSONL line by line."""
-    with open(filepath, 'r', encoding='utf-8') as f:
+def stream_jsonl(filepath: str, use_fast_parser: bool = True) -> Iterator[Dict]:
+    """Stream JSONL line by line with fast parser."""
+    parser = json_loads if use_fast_parser else json.loads
+    with open(filepath, 'r', encoding='utf-8', buffering=65536) as f:
         for line in f:
-            yield json.loads(line)
+            if line.strip():
+                yield parser(line)
 
 
 # ============================================
@@ -81,27 +117,69 @@ def create_collection(client: QdrantClient, collection_name: str, vector_size: i
 # UPLOAD
 # ============================================
 
+def upload_batch_worker(
+        client: QdrantClient,
+        collection_name: str,
+        batch_queue: queue.Queue,
+        pbar: tqdm,
+        results: List
+) -> None:
+    """Worker thread that uploads batches from queue."""
+    while True:
+        try:
+            item = batch_queue.get(timeout=1)
+            if item is None:  # Poison pill
+                break
+
+            batch_points, batch_len = item
+
+            # Upload with retry logic
+            retries = 3
+            while retries > 0:
+                try:
+                    client.upsert(
+                        collection_name=collection_name,
+                        points=batch_points
+                    )
+                    results.append(batch_len)
+                    pbar.update(batch_len)
+                    break
+                except Exception as e:
+                    retries -= 1
+                    if retries > 0:
+                        time.sleep(2)  # Wait before retry
+                    else:
+                        print(f"\n❌ Failed to upload batch after retries: {e}")
+                        raise
+
+            batch_queue.task_done()
+        except queue.Empty:
+            continue
+
+
 def upload_to_qdrant(
         input_file: str = INPUT_FILE,
         qdrant_url: str = QDRANT_URL,
         api_key: str = QDRANT_API_KEY,
         collection_name: str = COLLECTION_NAME,
         batch_size: int = BATCH_SIZE,
-        vector_size: int = VECTOR_SIZE
+        vector_size: int = VECTOR_SIZE,
+        num_threads: int = NUM_UPLOAD_THREADS
 ) -> int:
     """
-    Upload embeddings to Qdrant in batches.
+    Upload embeddings to Qdrant in parallel batches.
     """
 
     print("\n" + "=" * 60)
-    print("UPLOADING TO QDRANT")
+    print("UPLOADING TO QDRANT (OPTIMIZED)")
     print("=" * 60)
 
     # Connect to Qdrant
     print(f"\nConnecting to Qdrant at {qdrant_url}...")
     client = QdrantClient(
         url=qdrant_url,
-        api_key=api_key
+        api_key=api_key,
+        timeout=60.0  # Increased timeout for large batches
     )
 
     # Test connection
@@ -120,51 +198,78 @@ def upload_to_qdrant(
     print(f"\nSetting up collection '{collection_name}'...")
     create_collection(client, collection_name, vector_size)
 
-    # Count total
-    total_chunks = count_lines(input_file)
-    print(f"\nTotal chunks to upload: {total_chunks:,}")
-    print(f"Batch size: {batch_size}\n")
+    # Estimate total
+    print(f"\nAnalyzing file size...")
+    total_chunks = estimate_line_count(input_file)
+    print(f"✓ Total chunks to upload: {total_chunks:,}")
+    print(f"✓ Batch size: {batch_size}")
+    print(f"✓ Upload threads: {num_threads}\n")
 
-    # Upload in batches
+    # Upload in parallel batches
     uploaded = 0
     batch_points = []
+    batch_queue = queue.Queue(maxsize=num_threads * 2)
+    results = []
     start_time = time.time()
 
-    with tqdm(total=total_chunks, desc="Uploading") as pbar:
+    # Start worker threads
+    executor = ThreadPoolExecutor(max_workers=num_threads)
+    futures = []
+    for _ in range(num_threads):
+        future = executor.submit(
+            upload_batch_worker,
+            client,
+            collection_name,
+            batch_queue,
+            tqdm(total=total_chunks, desc="Uploading", position=0),
+            results
+        )
+        futures.append(future)
 
-        for idx, chunk in enumerate(stream_jsonl(input_file)):
+    # Queue batches from stream
+    try:
+        with tqdm(total=total_chunks, desc="Reading", position=1) as read_pbar:
+            for idx, chunk in enumerate(stream_jsonl(input_file)):
 
-            # Create Qdrant point
-            point = PointStruct(
-                id=idx,  # Sequential ID
-                vector=chunk["embedding"],
-                payload={
-                    "text": chunk["text"],
-                    "chunk_index": chunk["chunk_index"],
-                    "metadata": chunk["metadata"]
-                }
-            )
-
-            batch_points.append(point)
-
-            # Upload when batch is full
-            if len(batch_points) >= batch_size:
-                client.upsert(
-                    collection_name=collection_name,
-                    points=batch_points
+                # Create Qdrant point (minimize payload size)
+                point = PointStruct(
+                    id=idx,
+                    vector=chunk["embedding"],
+                    payload={
+                        "text": chunk["text"],
+                        "chunk_index": chunk.get("chunk_index", idx),
+                        "metadata": chunk.get("metadata", {})
+                    }
                 )
-                uploaded += len(batch_points)
-                pbar.update(len(batch_points))
-                batch_points = []
 
-        # Upload remaining
-        if batch_points:
-            client.upsert(
-                collection_name=collection_name,
-                points=batch_points
-            )
-            uploaded += len(batch_points)
-            pbar.update(len(batch_points))
+                batch_points.append(point)
+
+                # Queue when batch is full
+                if len(batch_points) >= batch_size:
+                    batch_queue.put((batch_points, len(batch_points)))
+                    batch_points = []
+                    read_pbar.update(batch_size)
+
+            # Queue remaining
+            if batch_points:
+                batch_queue.put((batch_points, len(batch_points)))
+                read_pbar.update(len(batch_points))
+
+    except Exception as e:
+        print(f"\n❌ Error during upload: {e}")
+        # Stop workers
+        for _ in range(num_threads):
+            batch_queue.put(None)
+        executor.shutdown(wait=True)
+        return 0
+
+    # Send poison pills to stop workers
+    for _ in range(num_threads):
+        batch_queue.put(None)
+
+    # Wait for all uploads to complete
+    executor.shutdown(wait=True)
+    uploaded = sum(results)
 
     elapsed = time.time() - start_time
 
@@ -177,8 +282,11 @@ def upload_to_qdrant(
     print(f"✓ Speed: {uploaded / elapsed:.0f} points/sec")
 
     # Verify
-    collection_info = client.get_collection(collection_name)
-    print(f"\n✓ Qdrant reports {collection_info.points_count:,} points in collection")
+    try:
+        collection_info = client.get_collection(collection_name)
+        print(f"\n✓ Qdrant reports {collection_info.points_count:,} points in collection")
+    except Exception as e:
+        print(f"\n⚠️  Could not verify collection: {e}")
 
     return uploaded
 

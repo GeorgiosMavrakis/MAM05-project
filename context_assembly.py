@@ -1,0 +1,429 @@
+"""
+STEP 6 & 7: CONTEXT ASSEMBLY AND LLM ANSWER GENERATION
+Formats retrieved chunks for LLM and generates structured answers with citations.
+
+STEP 6: Context Assembly
+- Organizes chunks by drug and category
+- Formats information hierarchically
+- Maintains source tracking for citations
+
+STEP 7: LLM Answer Generation
+- Sends formatted context to GPT-4
+- Generates patient-friendly answers
+- Extracts and structures citations
+- Provides confidence scoring
+"""
+
+from typing import List, Dict, Optional, Any
+import json
+import requests
+from dotenv import load_dotenv
+import os
+from dataclasses import dataclass
+
+load_dotenv()
+API_KEY = os.getenv("API_KEY")
+
+
+@dataclass
+class Citation:
+    """Represents a citation to a source chunk."""
+    chunk_id: int
+    drug: str
+    category: str
+    source_text: str
+    relevance_score: float
+
+
+@dataclass
+class LLMAnswer:
+    """Structured answer from LLM with citations."""
+    answer: str
+    citations: List[Citation]
+    confidence: str  # "high", "medium", "low"
+    answer_category: Optional[str]  # What aspect of drug was answered
+
+
+class ContextAssembler:
+    """Assembles context from retrieved chunks for LLM processing."""
+
+    def __init__(self):
+        """Initialize the context assembler."""
+        self.api_key = API_KEY
+        self.endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
+
+    def assemble_context(
+        self,
+        chunks: List[Any],
+        drug_brand: str,
+        drug_generic: str,
+        drug_class: str,
+        query: str
+    ) -> str:
+        """
+        STEP 6: Assemble retrieved chunks into structured context for LLM.
+
+        Args:
+            chunks: List of RetrievedChunk objects from retriever
+            drug_brand: Brand name of drug
+            drug_generic: Generic name of drug
+            drug_class: Drug class/category
+            query: Original user query
+
+        Returns:
+            Formatted context string suitable for LLM
+        """
+        if not chunks:
+            return "No relevant information found in database."
+
+        # Group chunks by category for better organization
+        chunks_by_category = self._group_by_category(chunks)
+
+        # Build formatted context
+        context_parts = []
+
+        # Header with drug information
+        context_parts.append(self._build_drug_header(
+            drug_brand, drug_generic, drug_class
+        ))
+
+        # Organize by category with source tracking
+        context_parts.append("=== Relevant Information ===\n")
+
+        for category, category_chunks in sorted(chunks_by_category.items()):
+            context_parts.append(f"\n[Source: {category.replace('_', ' ').title()}]")
+
+            for i, chunk in enumerate(category_chunks, 1):
+                # Include chunk ID for citation tracking
+                context_parts.append(f"\n({i}) [Chunk ID: {chunk.id}]")
+                context_parts.append(f"Score: {chunk.similarity_score:.2f}")
+
+                # Add chunk text with truncation if needed
+                text = chunk.text[:500]  # Limit to 500 chars per chunk
+                if len(chunk.text) > 500:
+                    text += "..."
+                context_parts.append(text)
+
+        # Add metadata context
+        context_parts.append(self._build_metadata_context(chunks))
+
+        return "\n".join(context_parts)
+
+    def generate_answer_with_citations(
+        self,
+        context: str,
+        query: str,
+        chunks: List[Any],
+        system_prompt: Optional[str] = None
+    ) -> LLMAnswer:
+        """
+        STEP 7: Send context to LLM and generate structured answer with citations.
+
+        Args:
+            context: Formatted context from Step 6
+            query: Original user question
+            chunks: Original chunk objects for citation building
+            system_prompt: Optional custom system prompt
+
+        Returns:
+            LLMAnswer object with answer, citations, and confidence
+        """
+        if system_prompt is None:
+            system_prompt = self._get_default_system_prompt()
+
+        # Build the user prompt with extraction instructions
+        user_prompt = self._build_user_prompt(context, query)
+
+        try:
+            # Call LLM
+            response_text = self._call_llm(system_prompt, user_prompt)
+
+            # Parse response to extract answer and citations
+            answer, citations, confidence = self._parse_llm_response(
+                response_text, chunks, query
+            )
+
+            return LLMAnswer(
+                answer=answer,
+                citations=citations,
+                confidence=confidence,
+                answer_category=self._infer_category(query)
+            )
+
+        except Exception as e:
+            # Fallback answer on error
+            return LLMAnswer(
+                answer=f"Error generating answer: {str(e)}",
+                citations=[],
+                confidence="low",
+                answer_category=None
+            )
+
+    def generate_answer_streaming(
+        self,
+        context: str,
+        query: str,
+        chunks: List[Any],
+        system_prompt: Optional[str] = None
+    ):
+        """
+        Stream LLM response for real-time UI updates.
+
+        Yields:
+            Streaming chunks of text
+        """
+        if system_prompt is None:
+            system_prompt = self._get_default_system_prompt()
+
+        user_prompt = self._build_user_prompt(context, query)
+
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.2,
+                "stream": True
+            }
+
+            response = requests.post(
+                self.endpoint,
+                json=payload,
+                headers=headers,
+                stream=True
+            )
+            response.raise_for_status()
+
+            # Stream response tokens
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8') if isinstance(line, bytes) else line
+                    if line_str.startswith('data: '):
+                        try:
+                            chunk_data = json.loads(line_str[6:])
+                            if chunk_data.get('choices'):
+                                delta = chunk_data['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    yield delta['content']
+                        except json.JSONDecodeError:
+                            pass
+
+        except Exception as e:
+            yield f"Error streaming response: {str(e)}"
+
+    # ═════════════════════════════════════════════════════════════
+    # HELPER METHODS
+    # ═════════════════════════════════════════════════════════════
+
+    def _group_by_category(self, chunks: List[Any]) -> Dict[str, List[Any]]:
+        """Group chunks by their metadata category."""
+        grouped = {}
+        for chunk in chunks:
+            category = chunk.metadata.get("category", "general")
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(chunk)
+        return grouped
+
+    def _build_drug_header(
+        self,
+        drug_brand: str,
+        drug_generic: str,
+        drug_class: str
+    ) -> str:
+        """Build drug information header."""
+        parts = []
+
+        if drug_brand:
+            parts.append(f"Drug: {drug_brand}")
+        if drug_generic:
+            parts.append(f"Generic: {drug_generic}")
+        if drug_class:
+            parts.append(f"Class: {drug_class}")
+
+        header = " | ".join(parts)
+        return f"{'='*70}\n{header}\n{'='*70}\n"
+
+    def _build_metadata_context(self, chunks: List[Any]) -> str:
+        """Add metadata information for context."""
+        parts = ["\n=== Information Quality Metrics ==="]
+        parts.append(f"Total chunks retrieved: {len(chunks)}")
+
+        avg_score = sum(c.similarity_score for c in chunks) / len(chunks)
+        parts.append(f"Average relevance score: {avg_score:.3f}")
+
+        # Count by score tier
+        high = sum(1 for c in chunks if c.similarity_score >= 0.8)
+        medium = sum(1 for c in chunks if 0.5 <= c.similarity_score < 0.8)
+        low = sum(1 for c in chunks if c.similarity_score < 0.5)
+
+        parts.append(f"High confidence chunks: {high}")
+        parts.append(f"Medium confidence chunks: {medium}")
+        parts.append(f"Lower confidence chunks: {low}")
+
+        return "\n".join(parts)
+
+    def _get_default_system_prompt(self) -> str:
+        """Get default system prompt for medical Q&A."""
+        return """You are a medical information assistant helping patients understand medications.
+
+Your responsibilities:
+1. Answer questions ONLY based on the provided medical information
+2. Be clear, accurate, and patient-friendly
+3. Avoid giving medical advice - encourage consulting healthcare providers
+4. Note any uncertainty or conflicting information
+5. Organize answers by relevance and severity
+
+When answering:
+- Be precise and cite sources using [Source: category]
+- Note if information varies between drugs
+- Flag any warnings or precautions prominently
+- If uncertain, say so clearly
+
+Output format:
+Your answer should be structured and easy to read for a patient."""
+
+    def _build_user_prompt(self, context: str, query: str) -> str:
+        """Build the full user prompt for the LLM."""
+        return f"""Based on the following medical information, answer the user's question.
+
+{context}
+
+User Question:
+{query}
+
+Please provide:
+1. A clear, patient-friendly answer
+2. Important safety information if relevant
+3. Any necessary disclaimers
+4. Guidance on when to contact a healthcare provider (if relevant)
+
+Remember: Base your answer ONLY on the information provided above."""
+
+    def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
+        """Call LLM API and return response text."""
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.2,  # Lower temperature for consistency
+            "max_tokens": 1500
+        }
+
+        response = requests.post(
+            self.endpoint,
+            json=payload,
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        return data["choices"][0]["message"]["content"]
+
+    def _parse_llm_response(
+        self,
+        response_text: str,
+        chunks: List[Any],
+        query: str
+    ) -> tuple[str, List[Citation], str]:
+        """
+        Parse LLM response and extract answer with citations.
+
+        Returns:
+            Tuple of (answer_text, citations, confidence)
+        """
+        # Extract confidence from response or infer from scores
+        confidence = self._infer_confidence(chunks)
+
+        # Build citations from chunks with high relevance
+        citations = self._build_citations(chunks)
+
+        # The answer is the entire response (LLM generated text)
+        answer = response_text
+
+        return answer, citations, confidence
+
+    def _infer_confidence(self, chunks: List[Any]) -> str:
+        """Infer confidence level from chunk scores."""
+        if not chunks:
+            return "low"
+
+        avg_score = sum(c.similarity_score for c in chunks) / len(chunks)
+
+        if avg_score >= 0.7:
+            return "high"
+        elif avg_score >= 0.5:
+            return "medium"
+        else:
+            return "low"
+
+    def _build_citations(self, chunks: List[Any]) -> List[Citation]:
+        """Convert chunks to Citation objects."""
+        citations = []
+
+        for chunk in chunks:
+            # Only include high-relevance chunks in citations
+            if chunk.similarity_score < 0.4:
+                continue
+
+            citation = Citation(
+                chunk_id=chunk.id,
+                drug=chunk.metadata.get("drug_name_brand", "Unknown"),
+                category=chunk.metadata.get("category", "general"),
+                source_text=chunk.text[:200],  # First 200 chars
+                relevance_score=chunk.similarity_score
+            )
+            citations.append(citation)
+
+        # Sort by relevance score
+        citations.sort(key=lambda c: c.relevance_score, reverse=True)
+
+        # Return top 5 citations
+        return citations[:5]
+
+    def _infer_category(self, query: str) -> Optional[str]:
+        """Infer what aspect of medication the query is about."""
+        query_lower = query.lower()
+
+        if any(word in query_lower for word in ["side effect", "adverse", "reaction"]):
+            return "adverse_reactions"
+        elif any(word in query_lower for word in ["dose", "dosage", "take", "how much"]):
+            return "dosage"
+        elif any(word in query_lower for word in ["pregnancy", "pregnant", "breastfeed"]):
+            return "pregnancy"
+        elif any(word in query_lower for word in ["warning", "precaution", "caution"]):
+            return "warnings"
+        elif any(word in query_lower for word in ["interact", "interaction", "combined"]):
+            return "interactions"
+        else:
+            return None
+
+
+# ═════════════════════════════════════════════════════════════════
+# CONVENIENCE FUNCTION
+# ═════════════════════════════════════════════════════════════════
+
+def create_assembler() -> ContextAssembler:
+    """Create and return a ContextAssembler instance."""
+    return ContextAssembler()
+
+
+if __name__ == "__main__":
+    print("Context Assembly and LLM Answer Generation Module")
+    print("Use this with retriever.py to implement STEP 6 & 7")
+
