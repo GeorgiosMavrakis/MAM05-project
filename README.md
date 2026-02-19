@@ -27,11 +27,11 @@ FDA Data → Filter → Chunk → Embed → Vector DB (Qdrant) → Retrieve → 
 
 ### Starting the Servers
 
-**Option 1: Automated Startup (Windows)**
+**Option 1: Install + Start (Windows)**
 
-Simply double-click or run:
+Use this the first time or whenever dependencies may be missing:
 ```bash
-start_medication_assistant.bat
+install_medication_assistant.bat
 ```
 
 This script will:
@@ -41,7 +41,18 @@ This script will:
 - ✅ Start both API and UI servers
 - ✅ Automatically open your browser to http://localhost:3000
 
-**Option 2: Manual Startup**
+**Option 2: Start Only (Windows)**
+
+Use this when dependencies are already installed:
+```bash
+start_medication_assistant.bat
+```
+
+This script will:
+- ✅ Start both API and UI servers
+- ✅ Automatically open your browser to http://localhost:3000
+
+**Option 3: Manual Startup**
 
 **API Server:**
 ```bash
