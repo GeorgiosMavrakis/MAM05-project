@@ -43,9 +43,15 @@ This script will:
 
 **Option 1: Install + Start (macOS)**
 
-Use this the first time or whenever dependencies may be missing:
+Use this the first time or whenever dependencies may be missing. **Run these two commands in your terminal from the project folder:**
+
+**Command 1:** Make the script executable
 ```bash
 chmod +x ./install_medication_assistant_mac.sh
+```
+
+**Command 2:** Run the installation and startup script
+```bash
 ./install_medication_assistant_mac.sh
 ```
 
@@ -53,7 +59,8 @@ This script will:
 - ✅ Check if Node.js and Python are installed
 - ✅ Install all Python dependencies from `requirements.txt`
 - ✅ Install all Node.js dependencies
-- ✅ Start both API and UI servers
+- ✅ Fix file permissions for Node.js binaries
+- ✅ Start both API and UI servers (each in a new Terminal window)
 - ✅ Automatically open your browser to http://localhost:3000
 
 **Option 2: Start Only (Windows)**
@@ -69,14 +76,21 @@ This script will:
 
 **Option 2: Start Only (macOS)**
 
-Use this when dependencies are already installed:
+Use this when dependencies are already installed. **Run these two commands in your terminal from the project folder:**
+
+**Command 1:** Make the script executable
 ```bash
 chmod +x ./start_medication_assistant_mac.sh
+```
+
+**Command 2:** Run the startup script
+```bash
 ./start_medication_assistant_mac.sh
 ```
 
 This script will:
-- ✅ Start both API and UI servers
+- ✅ Fix file permissions for Node.js binaries
+- ✅ Start both API and UI servers (each in a new Terminal window)
 - ✅ Automatically open your browser to http://localhost:3000
 
 **Option 3: Manual Startup**

@@ -14,21 +14,30 @@ print_header
 
 cd "$PROJECT_DIR"
 
+# Fix execute permissions on node_modules binaries (in case they were lost)
+if [[ -d "rag-ui/node_modules/.bin" ]]; then
+  chmod +x rag-ui/node_modules/.bin/* 2>/dev/null || true
+fi
+
 echo "[1/2] Starting API Server..."
-API_CMD="cd \"$PROJECT_DIR\"; echo 'Starting API Server...'; uvicorn API:app --host 0.0.0.0 --port 8000 --reload"
-osascript <<APPLESCRIPT
-tell application "Terminal"
-  do script "$API_CMD"
-end tell
+osascript - "$PROJECT_DIR" <<'APPLESCRIPT'
+on run argv
+  set projectDir to item 1 of argv
+  tell application "Terminal"
+    do script "cd " & projectDir & " && echo 'Starting API Server...' && uvicorn API:app --host 0.0.0.0 --port 8000 --reload"
+  end tell
+end run
 APPLESCRIPT
 sleep 3
 
 echo "[2/2] Starting UI Server..."
-UI_CMD="cd \"$PROJECT_DIR/rag-ui\"; echo 'Starting UI Server...'; npm start"
-osascript <<APPLESCRIPT
-tell application "Terminal"
-  do script "$UI_CMD"
-end tell
+osascript - "$PROJECT_DIR" <<'APPLESCRIPT'
+on run argv
+  set projectDir to item 1 of argv
+  tell application "Terminal"
+    do script "cd " & projectDir & "/rag-ui && echo 'Starting UI Server...' && npm start"
+  end tell
+end run
 APPLESCRIPT
 
 sleep 5
