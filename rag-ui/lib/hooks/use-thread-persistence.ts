@@ -93,23 +93,25 @@ export function useThreadPersistence(
         }
       }
 
-      const threads: PersistedThread[] = threadIds.map((threadId) => {
-        try {
-          const threadRuntime = runtime.threadList.getById(threadId);
-          const itemRuntime = runtime.threadList.getItemById(threadId);
-          const itemState = itemRuntime.getState();
+      const threads: PersistedThread[] = threadIds
+        .map((threadId): PersistedThread | null => {
+          try {
+            const threadRuntime = runtime.threadList.getById(threadId);
+            const itemRuntime = runtime.threadList.getItemById(threadId);
+            const itemState = itemRuntime.getState();
 
-          return {
-            state: threadRuntime.exportExternalState(),
-            title: itemState.title,
-            archived: threadList.archivedThreadIds.includes(threadId),
-          };
-        } catch (error) {
-          console.log("[ThreadPersistence] Thread no longer available:", threadId);
-          // Return a placeholder that will be filtered out
-          return null;
-        }
-      }).filter((thread): thread is PersistedThread => thread !== null);
+            return {
+              state: threadRuntime.exportExternalState(),
+              title: itemState.title,
+              archived: threadList.archivedThreadIds.includes(threadId),
+            };
+          } catch (error) {
+            console.log("[ThreadPersistence] Thread no longer available:", threadId);
+            // Return null which will be filtered out
+            return null;
+          }
+        })
+        .filter((thread): thread is PersistedThread => thread !== null);
 
       // If no valid threads remain after filtering, clear storage
       if (threads.length === 0) {

@@ -41,11 +41,38 @@ This script will:
 - ✅ Start both API and UI servers
 - ✅ Automatically open your browser to http://localhost:3000
 
+**Option 1: Install + Start (macOS)**
+
+Use this the first time or whenever dependencies may be missing:
+```bash
+chmod +x ./install_medication_assistant_mac.sh
+./install_medication_assistant_mac.sh
+```
+
+This script will:
+- ✅ Check if Node.js and Python are installed
+- ✅ Install all Python dependencies from `requirements.txt`
+- ✅ Install all Node.js dependencies
+- ✅ Start both API and UI servers
+- ✅ Automatically open your browser to http://localhost:3000
+
 **Option 2: Start Only (Windows)**
 
 Use this when dependencies are already installed:
 ```bash
 start_medication_assistant.bat
+```
+
+This script will:
+- ✅ Start both API and UI servers
+- ✅ Automatically open your browser to http://localhost:3000
+
+**Option 2: Start Only (macOS)**
+
+Use this when dependencies are already installed:
+```bash
+chmod +x ./start_medication_assistant_mac.sh
+./start_medication_assistant_mac.sh
 ```
 
 This script will:
