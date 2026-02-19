@@ -135,6 +135,13 @@ Next.js-based React UI (`rag-ui/`) with:
 - Thread management
 - Markdown rendering
 - Context display
+- **Source references**: Displays vector IDs in an expandable section
+  - After each assistant response, a "View Sources" expandable section appears
+  - Sources shown as numbered list with vector IDs (e.g., `[1] ba4525b4-4d70-4eed-a195-b4bdaff99f23_precautions_7`)
+  - Each source has a preview that can be expanded to see text excerpt
+  - Uses HTML `<details>` tags for native expand/collapse functionality
+  - Limited to top 10 most relevant sources
+  - Clean markdown rendering without custom components
 
 ## Development
 

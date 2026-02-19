@@ -44,19 +44,31 @@ export default function Home() {
     if (!runtime) return;
 
     const unsubscribe = runtime.threadList.subscribe(() => {
-      const threadId = runtime.thread.getState().threadId;
-      const itemRuntime = runtime.threadList.getItemById(threadId);
-      const itemState = itemRuntime.getState();
-      console.log("[Home] ThreadList changed, new title:", itemState.title);
-      setCurrentThreadTitle(itemState.title || "New Chat");
+      try {
+        const threadId = runtime.thread.getState().threadId;
+        const itemRuntime = runtime.threadList.getItemById(threadId);
+        const itemState = itemRuntime.getState();
+        console.log("[Home] ThreadList changed, new title:", itemState.title);
+        setCurrentThreadTitle(itemState.title || "New Chat");
+      } catch (error) {
+        // Thread may have been deleted, ignore the error
+        console.log("[Home] Thread no longer exists (likely deleted)");
+        setCurrentThreadTitle("New Chat");
+      }
     });
 
     const threadUnsubscribe = runtime.thread.subscribe(() => {
-      const threadId = runtime.thread.getState().threadId;
-      const itemRuntime = runtime.threadList.getItemById(threadId);
-      const itemState = itemRuntime.getState();
-      console.log("[Home] Thread changed, new title:", itemState.title);
-      setCurrentThreadTitle(itemState.title || "New Chat");
+      try {
+        const threadId = runtime.thread.getState().threadId;
+        const itemRuntime = runtime.threadList.getItemById(threadId);
+        const itemState = itemRuntime.getState();
+        console.log("[Home] Thread changed, new title:", itemState.title);
+        setCurrentThreadTitle(itemState.title || "New Chat");
+      } catch (error) {
+        // Thread may have been deleted, ignore the error
+        console.log("[Home] Thread no longer exists (likely deleted)");
+        setCurrentThreadTitle("New Chat");
+      }
     });
 
     return () => {

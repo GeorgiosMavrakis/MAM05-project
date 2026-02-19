@@ -183,11 +183,6 @@ function transformNDJSONToAIStream(
               }
               controller.enqueue(createTextEndEvent(messageId));
 
-              try {
-                controller.close();
-              } catch (_closeError) {
-                console.log(`[AIStream] Controller already closed on done`);
-              }
               isClosed = true;
             }
             break;
@@ -229,16 +224,25 @@ function transformNDJSONToAIStream(
                 }
                 controller.enqueue(createErrorEvent(errorMsg));
               } else if (data.type === "end") {
-                console.log(`[AIStream] End signal received`);
+                console.log(`[AIStream] ====== END SIGNAL RECEIVED ======`);
+                // Send text-end to stop loading indicator
                 if (!isClosed) {
-                  buffer = "";
-                  try {
-                    controller.close();
-                  } catch (_closeError) {
-                    console.log(`[AIStream] Controller already closed`);
+                  console.log(`[AIStream] Stream not closed yet, sending text-end event`);
+                  if (!hasStarted) {
+                    console.log(`[AIStream] Text not started, sending text-start first`);
+                    controller.enqueue(createTextStartEvent(messageId));
+                    hasStarted = true;
                   }
+                  console.log(`[AIStream] Enqueueing text-end event`);
+                  controller.enqueue(createTextEndEvent(messageId));
+                  console.log(`[AIStream] Text-end event enqueued, marking as closed`);
                   isClosed = true;
+                } else {
+                  console.log(`[AIStream] Stream already closed, skipping text-end`);
                 }
+                buffer = "";
+                console.log(`[AIStream] Breaking from loop`);
+                break; // Exit the loop, will close stream
               }
             } catch (_parseError) {
               console.warn(
@@ -246,8 +250,27 @@ function transformNDJSONToAIStream(
               );
             }
           }
+        }
 
-          if (isClosed) break;
+        console.log(`[AIStream] ====== EXITED MAIN LOOP ======`);
+        console.log(`[AIStream] isClosed=${isClosed}, hasStarted=${hasStarted}`);
+
+        // Close stream after all processing is complete
+        if (!isClosed) {
+          console.log(`[AIStream] Closing stream after processing (no end signal received)`);
+          try {
+            controller.close();
+          } catch (_closeError) {
+            console.log(`[AIStream] Controller already closed`);
+          }
+          isClosed = true;
+        } else {
+          console.log(`[AIStream] Stream marked as closed, attempting final close`);
+          try {
+            controller.close();
+          } catch (_closeError) {
+            console.log(`[AIStream] Controller close (expected): ${_closeError}`);
+          }
         }
       } catch (error) {
         console.error("[AIStream] Error reading stream:", error);
@@ -297,3 +320,4 @@ function createErrorEvent(errorText: string): Uint8Array {
   };
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
+

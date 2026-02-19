@@ -115,6 +115,7 @@ async def chat(message: MessageRequest):
     logger.info(f"💬 Chat message received: {question}")
 
     async def generate():
+        end_sent = False
         try:
             # STEP 1: Retrieve relevant chunks from Qdrant
             logger.info("🔍 Retrieving chunks...")
@@ -125,6 +126,7 @@ async def chat(message: MessageRequest):
                 logger.warning("❌ No chunks found")
                 yield json.dumps({"type": "text", "content": "No relevant information found in the database. Please try a different question."}) + "\n"
                 yield json.dumps({"type": "end"}) + "\n"
+                end_sent = True
                 return
 
             logger.info(f"✅ Retrieved {len(text_chunks)} chunks")
@@ -143,6 +145,8 @@ async def chat(message: MessageRequest):
             except Exception as e:
                 logger.error(f"❌ Error assembling context: {str(e)}", exc_info=True)
                 yield json.dumps({"type": "error", "content": f"Error preparing response: {str(e)}"}) + "\n"
+                yield json.dumps({"type": "end"}) + "\n"
+                end_sent = True
                 return
 
             # STEP 3: Stream answer from LLM
@@ -192,8 +196,27 @@ async def chat(message: MessageRequest):
             else:
                 logger.info(f"✅ Answer stream complete ({answer_chunk_count} chunks)")
 
-            # Send end signal
-            yield json.dumps({"type": "end"}) + "\n"
+                # Send source references in a clean format
+                logger.info(f"📚 Sending {len(text_chunks)} source references")
+
+                # Send sources section header
+                yield json.dumps({
+                    "type": "text",
+                    "content": "\n\n---\n\n### 📚 Sources\n\n"
+                }) + "\n"
+
+                # Send each source as a collapsible card
+                for i, chunk in enumerate(text_chunks[:10], 1):
+                    chunk_id = chunk.get("id", "unknown")
+                    chunk_text = chunk.get("text", "")[:150]
+
+                    # Format as a compact citation
+                    source_markdown = f"**{i}.** `{chunk_id}`\n\n"
+
+                    yield json.dumps({
+                        "type": "text",
+                        "content": source_markdown
+                    }) + "\n"
 
         except Exception as e:
             logger.error(f"❌ Unexpected error in chat: {str(e)}", exc_info=True)
@@ -201,6 +224,11 @@ async def chat(message: MessageRequest):
                 yield json.dumps({"type": "error", "content": f"Unexpected error: {str(e)}"}) + "\n"
             except:
                 pass
+        finally:
+            # ALWAYS send end signal to stop loading indicator (if not already sent)
+            if not end_sent:
+                logger.info("📤 Sending final end signal")
+                yield json.dumps({"type": "end"}) + "\n"
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
