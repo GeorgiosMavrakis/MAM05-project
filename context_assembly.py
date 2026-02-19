@@ -68,7 +68,7 @@ class ContextAssembler:
     def __init__(self):
         """Initialize the context assembler."""
         self.api_key = API_KEY
-        self.endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
+        self.endpoint = "https://llmproxy.uva.nl/v1/chat/completions"
 
         # Validation and logging
         logger.info(f"[ContextAssembler] Initializing...")
@@ -229,7 +229,7 @@ class ContextAssembler:
             }
 
             payload = {
-                "model": "gpt-4.1-mini",
+                "model": "gpt-4o-mini",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}

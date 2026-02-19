@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Github, MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Sidebar,
@@ -33,7 +34,7 @@ export function ThreadListSidebar({
                   </div>
                   <div className="aui-sidebar-header-heading mr-6 flex flex-col gap-0.5 leading-none">
                     <span className="aui-sidebar-header-title font-semibold">
-                      assistant-ui
+                      Medication Assistant
                     </span>
                   </div>
                 </Link>
@@ -51,15 +52,22 @@ export function ThreadListSidebar({
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link
-                href="https://github.com/assistant-ui/assistant-ui"
+                href="https://open.fda.gov/"
                 target="_blank"
+                rel="noopener noreferrer"
               >
                 <div className="aui-sidebar-footer-icon-wrapper flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  <Github className="aui-sidebar-footer-icon size-4" />
+                  <Image
+                    src="https://pbs.twimg.com/profile_images/701113332183371776/57JHEzt7.jpg"
+                    alt="OpenFDA logo"
+                    width={16}
+                    height={16}
+                    className="aui-sidebar-footer-icon size-4 rounded-sm object-cover"
+                  />
                 </div>
                 <div className="aui-sidebar-footer-heading flex flex-col gap-0.5 leading-none">
                   <span className="aui-sidebar-footer-title font-semibold">
-                    GitHub
+                    OpenFDA
                   </span>
                   <span>View Source</span>
                 </div>

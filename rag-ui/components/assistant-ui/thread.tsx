@@ -115,14 +115,14 @@ const ThreadWelcome: FC = () => {
 
 const SUGGESTIONS = [
   {
-    title: "What's the weather",
-    label: "in San Francisco?",
-    prompt: "What's the weather in San Francisco?",
+    title: "Explain the side effects",
+    label: "of aspirin",
+    prompt: "Explain the side effects of aspirin",
   },
   {
-    title: "Explain React hooks",
-    label: "like useState and useEffect",
-    prompt: "Explain React hooks like useState and useEffect",
+    title: "Can I take penicillin",
+    label: "while pregnant?",
+    prompt: "Can I take penicillin while pregnant?",
   },
 ] as const;
 
