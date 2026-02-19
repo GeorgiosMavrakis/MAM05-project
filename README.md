@@ -117,7 +117,6 @@ The project follows a staged processing workflow using the `_whole` dataset vari
 | `retriever.py` | Query embedding, semantic search, and reranking |
 | `context_assembly.py` | Context formatting and LLM integration |
 | `API.py` | FastAPI application with Q&A endpoints |
-| `vector_index.py` | Vector database utilities |
 | `filter_whole.py` | Data cleaning and normalization |
 | `chunker_whole.py` | Semantic text chunking |
 | `embedder_whole.py` | GPU-accelerated embedding generation |
@@ -128,14 +127,6 @@ The project follows a staged processing workflow using the `_whole` dataset vari
 - **Input**: FDA OpenFDA drug label dataset (`Drugs_filtered/`)
 - **Combined Data**: `combined_whole.json` (all drug records)
 - **Vector Index**: Qdrant remote instance
-
-## Configuration
-
-Key settings in `config.py`:
-- `EMBED_MODEL`: Embedding model name (default: `all-MiniLM-L6-v2`)
-- `QDRANT_URL`: Vector database endpoint
-- `RETRIEVE_K_POOL`: Number of results to retrieve
-- `EMBED_BATCH`: Batch size for embedding
 
 ## Frontend
 
