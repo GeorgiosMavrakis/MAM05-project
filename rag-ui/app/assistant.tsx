@@ -21,6 +21,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { useAutoThreadTitle } from "@/lib/hooks/use-auto-thread-title";
+import { useState, useEffect } from "react";
 
 export const Assistant = () => {
   const runtime = useChatRuntime({
@@ -28,6 +30,35 @@ export const Assistant = () => {
       api: "/api/chat",
     }),
   });
+
+  const [currentThreadTitle, setCurrentThreadTitle] = useState<string>("New Chat");
+
+  useAutoThreadTitle(runtime);
+
+  useEffect(() => {
+    if (!runtime) return;
+
+    const unsubscribe = runtime.threadList.subscribe(() => {
+      const threadId = runtime.thread.getState().threadId;
+      const itemRuntime = runtime.threadList.getItemById(threadId);
+      const itemState = itemRuntime.getState();
+      console.log("[Assistant] ThreadList changed, new title:", itemState.title);
+      setCurrentThreadTitle(itemState.title || "New Chat");
+    });
+
+    const threadUnsubscribe = runtime.thread.subscribe(() => {
+      const threadId = runtime.thread.getState().threadId;
+      const itemRuntime = runtime.threadList.getItemById(threadId);
+      const itemState = itemRuntime.getState();
+      console.log("[Assistant] Thread changed, new title:", itemState.title);
+      setCurrentThreadTitle(itemState.title || "New Chat");
+    });
+
+    return () => {
+      unsubscribe?.();
+      threadUnsubscribe?.();
+    };
+  }, [runtime]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
@@ -51,7 +82,7 @@ export const Assistant = () => {
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="hidden md:block" />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>New Chat</BreadcrumbPage>
+                    <BreadcrumbPage>{currentThreadTitle}</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>

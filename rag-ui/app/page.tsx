@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import {
   useChatRuntime,
@@ -22,6 +21,9 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { useThreadPersistence } from "@/lib/hooks/use-thread-persistence";
+import { useAutoThreadTitle } from "@/lib/hooks/use-auto-thread-title";
+import { useState, useEffect } from "react";
 
 export default function Home() {
   const runtime = useChatRuntime({
@@ -30,9 +32,37 @@ export default function Home() {
     }),
   });
 
+  const [currentThreadTitle, setCurrentThreadTitle] = useState<string>("New Chat");
+
+  // Initialize thread persistence with localStorage
+  useThreadPersistence(runtime);
+
+  // Initialize auto-naming for new chats
+  useAutoThreadTitle(runtime);
+
   useEffect(() => {
-    // Debug: Monitor messages in runtime
-    console.log("[HomePage] Runtime created:", runtime);
+    if (!runtime) return;
+
+    const unsubscribe = runtime.threadList.subscribe(() => {
+      const threadId = runtime.thread.getState().threadId;
+      const itemRuntime = runtime.threadList.getItemById(threadId);
+      const itemState = itemRuntime.getState();
+      console.log("[Home] ThreadList changed, new title:", itemState.title);
+      setCurrentThreadTitle(itemState.title || "New Chat");
+    });
+
+    const threadUnsubscribe = runtime.thread.subscribe(() => {
+      const threadId = runtime.thread.getState().threadId;
+      const itemRuntime = runtime.threadList.getItemById(threadId);
+      const itemState = itemRuntime.getState();
+      console.log("[Home] Thread changed, new title:", itemState.title);
+      setCurrentThreadTitle(itemState.title || "New Chat");
+    });
+
+    return () => {
+      unsubscribe?.();
+      threadUnsubscribe?.();
+    };
   }, [runtime]);
 
   return (
@@ -48,7 +78,7 @@ export default function Home() {
                 <BreadcrumbList>
                   <BreadcrumbItem className="hidden md:block">
                     <BreadcrumbLink
-                      href="https://www.assistant-ui.com/docs/getting-started"
+                      href="https://open.fda.gov/"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -57,7 +87,7 @@ export default function Home() {
                   </BreadcrumbItem>
                   <BreadcrumbSeparator className="hidden md:block" />
                   <BreadcrumbItem>
-                    <BreadcrumbPage>New Chat</BreadcrumbPage>
+                    <BreadcrumbPage>{currentThreadTitle}</BreadcrumbPage>
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>

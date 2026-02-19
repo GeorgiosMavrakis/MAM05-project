@@ -3,7 +3,6 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { ErrorMessage } from "@/components/assistant-ui/error-message";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
@@ -49,18 +48,27 @@ export const Thread: FC = () => {
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
       >
-        <AssistantIf condition={({ thread }) => {
-          console.log("[Thread] isEmpty check:", thread.isEmpty, "Message count:", thread.messages.length);
-          if (thread.messages.length > 0) {
-            console.log("[Thread] Latest message:", {
-              role: thread.messages[thread.messages.length - 1].role,
-              content: thread.messages[thread.messages.length - 1].content.map((p: any) =>
-                p.type === "text" ? p.text.substring(0, 50) : p.type
-              )
-            });
-          }
-          return thread.isEmpty;
-        }}>
+        <AssistantIf
+          condition={({ thread }) => {
+            console.log(
+              "[Thread] isEmpty check:",
+              thread.isEmpty,
+              "Message count:",
+              thread.messages.length,
+            );
+            if (thread.messages.length > 0) {
+              console.log("[Thread] Latest message:", {
+                role: thread.messages[thread.messages.length - 1].role,
+                content: thread.messages[
+                  thread.messages.length - 1
+                ].content.map((p: any) =>
+                  p.type === "text" ? p.text.substring(0, 50) : p.type,
+                ),
+              });
+            }
+            return thread.isEmpty;
+          }}
+        >
           <ThreadWelcome />
         </AssistantIf>
 
@@ -266,21 +274,18 @@ const ErrorAwareText: FC<{ text: string }> = ({ text }) => {
   console.log("[ErrorAwareText] hasError:", hasError);
   console.log("[ErrorAwareText] hasConnectionError:", hasConnectionError);
 
-  const isError = startsWithError || hasAPIError || hasError || hasConnectionError;
+  const isError =
+    startsWithError || hasAPIError || hasError || hasConnectionError;
 
   console.log("[ErrorAwareText] FINAL isError:", isError);
 
   if (isError) {
     console.log("[ErrorAwareText] ===== RENDERING ERROR UI =====");
     return (
-      <div className="my-2 rounded-lg border-l-4 border-destructive bg-destructive/10 p-4 text-destructive dark:bg-destructive/5 dark:text-red-200">
+      <div className="my-2 rounded-lg border-destructive border-l-4 bg-destructive/10 p-4 text-destructive dark:bg-destructive/5 dark:text-red-200">
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex-shrink-0">
-            <svg
-              className="h-5 w-5"
-              fill="currentColor"
-              viewBox="0 0 20 20"
-            >
+            <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path
                 fillRule="evenodd"
                 d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
@@ -289,10 +294,10 @@ const ErrorAwareText: FC<{ text: string }> = ({ text }) => {
             </svg>
           </div>
           <div className="flex-1">
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed font-semibold">
+            <p className="whitespace-pre-wrap break-words font-semibold text-sm leading-relaxed">
               Error
             </p>
-            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed mt-1">
+            <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-relaxed">
               {text}
             </p>
           </div>

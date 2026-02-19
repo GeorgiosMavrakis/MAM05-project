@@ -2,12 +2,16 @@ import type { UIMessage } from "ai";
 
 // Get API endpoint from environment or use default
 const API_ENDPOINT = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const API_TIMEOUT = parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || "60", 10) * 1000;
+const API_TIMEOUT =
+  parseInt(process.env.NEXT_PUBLIC_API_TIMEOUT || "60", 10) * 1000;
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    console.log("[RAG Route] Full request body:", JSON.stringify(body).substring(0, 500));
+    console.log(
+      "[RAG Route] Full request body:",
+      JSON.stringify(body).substring(0, 500),
+    );
 
     const { messages }: { messages: UIMessage[] } = body;
     console.log("[RAG Route] Received messages, count:", messages?.length);
@@ -19,41 +23,69 @@ export async function POST(req: Request) {
 
     // Get the last user message
     const lastMessage = messages[messages.length - 1];
-    console.log("[RAG Route] Last message:", JSON.stringify(lastMessage).substring(0, 300));
+    console.log(
+      "[RAG Route] Last message:",
+      JSON.stringify(lastMessage).substring(0, 300),
+    );
 
     let messageContent: string = "";
 
     // Handle different message formats - assistant-ui uses 'parts' array
     if (typeof lastMessage.content === "string") {
       messageContent = lastMessage.content;
-      console.log("[RAG Route] Content is string:", messageContent.substring(0, 50));
+      console.log(
+        "[RAG Route] Content is string:",
+        messageContent.substring(0, 50),
+      );
     } else if (Array.isArray(lastMessage.content)) {
-      console.log("[RAG Route] Content is array, parts count:", lastMessage.content.length);
+      console.log(
+        "[RAG Route] Content is array, parts count:",
+        lastMessage.content.length,
+      );
       messageContent = lastMessage.content
         .map((part: any) => {
-          console.log("[RAG Route] Part:", JSON.stringify(part).substring(0, 100));
+          console.log(
+            "[RAG Route] Part:",
+            JSON.stringify(part).substring(0, 100),
+          );
           return part.text || "";
         })
         .join("");
     } else if (Array.isArray((lastMessage as any).parts)) {
       // assistant-ui format uses 'parts' instead of 'content'
-      console.log("[RAG Route] Message uses 'parts' array, count:", (lastMessage as any).parts.length);
+      console.log(
+        "[RAG Route] Message uses 'parts' array, count:",
+        (lastMessage as any).parts.length,
+      );
       messageContent = (lastMessage as any).parts
         .map((part: any) => {
-          console.log("[RAG Route] Part:", JSON.stringify(part).substring(0, 100));
+          console.log(
+            "[RAG Route] Part:",
+            JSON.stringify(part).substring(0, 100),
+          );
           return part.text || "";
         })
         .join("");
     } else {
-      console.log("[RAG Route] Content type:", typeof lastMessage.content, "Value:", lastMessage.content);
+      console.log(
+        "[RAG Route] Content type:",
+        typeof lastMessage.content,
+        "Value:",
+        lastMessage.content,
+      );
     }
 
     if (!messageContent) {
-      console.error("[RAG Route] No message content found. Message object:", JSON.stringify(lastMessage));
+      console.error(
+        "[RAG Route] No message content found. Message object:",
+        JSON.stringify(lastMessage),
+      );
       return new Response("Empty message content", { status: 400 });
     }
 
-    console.log(`[RAG Route] Processing message: ${messageContent.substring(0, 100)}`);
+    console.log(
+      `[RAG Route] Processing message: ${messageContent.substring(0, 100)}`,
+    );
 
     try {
       const chatUrl = `${API_ENDPOINT}/chat`;
@@ -72,7 +104,9 @@ export async function POST(req: Request) {
       });
 
       if (!backendResponse.ok) {
-        console.error(`[RAG Client] API error: ${backendResponse.status} ${backendResponse.statusText}`);
+        console.error(
+          `[RAG Client] API error: ${backendResponse.status} ${backendResponse.statusText}`,
+        );
         throw new Error(`Backend API error: ${backendResponse.status}`);
       }
 
@@ -92,22 +126,21 @@ export async function POST(req: Request) {
       });
     } catch (streamError) {
       console.error("[RAG Route] Streaming error:", streamError);
-      const errorMessage = streamError instanceof Error ? streamError.message : "Unknown error occurred";
       throw streamError;
     }
   } catch (error) {
     console.error("[RAG Route] Request error:", error);
-    const errorMsg = error instanceof Error ? error.message : "Internal server error";
+    const errorMsg =
+      error instanceof Error ? error.message : "Internal server error";
     return new Response(`Error: ${errorMsg}`, { status: 500 });
   }
 }
 
-
 function transformNDJSONToAIStream(
-  ndjsonStream: ReadableStream<Uint8Array>
+  ndjsonStream: ReadableStream<Uint8Array>,
 ): ReadableStream<Uint8Array> {
   let buffer = "";
-  const messageId = "msg_" + Date.now();
+  const messageId = `msg_${Date.now()}`;
 
   return new ReadableStream({
     async start(controller) {
@@ -126,14 +159,18 @@ function transformNDJSONToAIStream(
               try {
                 const data = JSON.parse(buffer);
                 if (data.type === "text" && data.content) {
-                  console.log(`[AIStream] Final chunk: "${data.content.substring(0, 50)}"`);
+                  console.log(
+                    `[AIStream] Final chunk: "${data.content.substring(0, 50)}"`,
+                  );
                   if (!hasStarted) {
                     controller.enqueue(createTextStartEvent(messageId));
                     hasStarted = true;
                   }
-                  controller.enqueue(createTextDeltaEvent(messageId, data.content));
+                  controller.enqueue(
+                    createTextDeltaEvent(messageId, data.content),
+                  );
                 }
-              } catch (e) {
+              } catch (_e) {
                 console.warn(`[AIStream] Failed to parse final buffer`);
               }
             }
@@ -148,7 +185,7 @@ function transformNDJSONToAIStream(
 
               try {
                 controller.close();
-              } catch (closeError) {
+              } catch (_closeError) {
                 console.log(`[AIStream] Controller already closed on done`);
               }
               isClosed = true;
@@ -165,15 +202,22 @@ function transformNDJSONToAIStream(
 
             try {
               const data = JSON.parse(line);
-              console.log(`[AIStream] Processing:`, JSON.stringify(data).substring(0, 100));
+              console.log(
+                `[AIStream] Processing:`,
+                JSON.stringify(data).substring(0, 100),
+              );
 
               if (data.type === "text" && data.content) {
-                console.log(`[AIStream] Chunk: "${data.content.substring(0, 50)}"`);
+                console.log(
+                  `[AIStream] Chunk: "${data.content.substring(0, 50)}"`,
+                );
                 if (!hasStarted) {
                   controller.enqueue(createTextStartEvent(messageId));
                   hasStarted = true;
                 }
-                controller.enqueue(createTextDeltaEvent(messageId, data.content));
+                controller.enqueue(
+                  createTextDeltaEvent(messageId, data.content),
+                );
               } else if (data.type === "error") {
                 const errorMsg = data.content.startsWith("❌")
                   ? data.content
@@ -190,14 +234,16 @@ function transformNDJSONToAIStream(
                   buffer = "";
                   try {
                     controller.close();
-                  } catch (closeError) {
+                  } catch (_closeError) {
                     console.log(`[AIStream] Controller already closed`);
                   }
                   isClosed = true;
                 }
               }
-            } catch (parseError) {
-              console.warn(`[AIStream] Failed to parse JSON: ${line.substring(0, 100)}`);
+            } catch (_parseError) {
+              console.warn(
+                `[AIStream] Failed to parse JSON: ${line.substring(0, 100)}`,
+              );
             }
           }
 
@@ -208,7 +254,7 @@ function transformNDJSONToAIStream(
         if (!isClosed) {
           try {
             controller.error(error);
-          } catch (e) {
+          } catch (_e) {
             console.log("[AIStream] Error on controller.error");
           }
         }
@@ -251,4 +297,3 @@ function createErrorEvent(errorText: string): Uint8Array {
   };
   return new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
 }
-
