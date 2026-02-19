@@ -13,7 +13,7 @@ export async function POST(req: Request) {
       JSON.stringify(body).substring(0, 500),
     );
 
-    const { messages }: { messages: UIMessage[] } = body;
+    const { messages }: { messages: any[] } = body;
     console.log("[RAG Route] Received messages, count:", messages?.length);
 
     if (!messages || messages.length === 0) {
@@ -51,13 +51,13 @@ export async function POST(req: Request) {
           return part.text || "";
         })
         .join("");
-    } else if (Array.isArray((lastMessage as any).parts)) {
+    } else if (Array.isArray(lastMessage.parts)) {
       // assistant-ui format uses 'parts' instead of 'content'
       console.log(
         "[RAG Route] Message uses 'parts' array, count:",
-        (lastMessage as any).parts.length,
+        lastMessage.parts.length,
       );
-      messageContent = (lastMessage as any).parts
+      messageContent = lastMessage.parts
         .map((part: any) => {
           console.log(
             "[RAG Route] Part:",

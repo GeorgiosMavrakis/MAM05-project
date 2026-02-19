@@ -307,7 +307,7 @@ const ErrorAwareText: FC<{ text: string }> = ({ text }) => {
   }
 
   console.log("[ErrorAwareText] ===== RENDERING NORMAL TEXT =====");
-  return <MarkdownText text={text} />;
+  return <MarkdownText />;
 };
 
 const AssistantActionBar: FC = () => {

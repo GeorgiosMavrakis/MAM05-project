@@ -27,6 +27,22 @@ FDA Data → Filter → Chunk → Embed → Vector DB (Qdrant) → Retrieve → 
 
 ### Starting the Servers
 
+**Option 1: Automated Startup (Windows)**
+
+Simply double-click or run:
+```bash
+start_medication_assistant.bat
+```
+
+This script will:
+- ✅ Check if Node.js and Python are installed
+- ✅ Install all Python dependencies from `requirements.txt`
+- ✅ Install all Node.js dependencies
+- ✅ Start both API and UI servers
+- ✅ Automatically open your browser to http://localhost:3000
+
+**Option 2: Manual Startup**
+
 **API Server:**
 ```bash
 uvicorn API:app --host 0.0.0.0 --port 8000 --reload
@@ -35,7 +51,7 @@ uvicorn API:app --host 0.0.0.0 --port 8000 --reload
 **UI Server:**
 ```bash
 cd rag-ui
-npm run dev
+npm start
 ```
 
 ## Data Processing Pipeline
