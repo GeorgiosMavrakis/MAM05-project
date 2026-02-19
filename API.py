@@ -123,7 +123,7 @@ async def chat(message: MessageRequest):
 
             if not text_chunks:
                 logger.warning("❌ No chunks found")
-                yield json.dumps({"type": "text", "content": "No relevant information found. Please try rewording your question."}) + "\n"
+                yield json.dumps({"type": "text", "content": "No relevant information found in the database. Please try a different question."}) + "\n"
                 yield json.dumps({"type": "end"}) + "\n"
                 return
 
@@ -131,31 +131,76 @@ async def chat(message: MessageRequest):
 
             # STEP 2: Assemble context from chunks
             logger.info("⚙️  Assembling context...")
-            assembler = ContextAssembler()
-            context = assembler.assemble_context(
-                chunks=text_chunks,
-                drug_brand="",
-                drug_generic="",
-                drug_class="",
-                query=question
-            )
+            try:
+                assembler = ContextAssembler()
+                context = assembler.assemble_context(
+                    chunks=text_chunks,
+                    drug_brand="",
+                    drug_generic="",
+                    drug_class="",
+                    query=question
+                )
+            except Exception as e:
+                logger.error(f"❌ Error assembling context: {str(e)}", exc_info=True)
+                yield json.dumps({"type": "error", "content": f"Error preparing response: {str(e)}"}) + "\n"
+                return
 
             # STEP 3: Stream answer from LLM
             logger.info("🤖 Streaming answer from LLM...")
-            for chunk in assembler.generate_answer_streaming(
-                context=context,
-                query=question,
-                chunks=text_chunks
-            ):
-                yield json.dumps({"type": "text", "content": chunk}) + "\n"
+            answer_chunk_count = 0
+            error_occurred = False
+            error_message = None
 
-            logger.info("✅ Answer stream complete")
+            try:
+                for chunk in assembler.generate_answer_streaming(
+                    context=context,
+                    query=question,
+                    chunks=text_chunks
+                ):
+                    # Check if chunk contains error indicators
+                    is_error = isinstance(chunk, str) and (
+                        chunk.startswith("Error:") or
+                        chunk.startswith("API Error") or
+                        "APIConnectionError" in chunk or
+                        "Connection error" in chunk
+                    )
+
+                    if is_error:
+                        logger.warning(f"❌ LLM error detected: {chunk[:100]}")
+                        error_occurred = True
+                        error_message = chunk
+                        # Prepend error marker if not already present
+                        if not chunk.startswith("❌"):
+                            chunk = f"❌ {chunk}"
+                        logger.info(f"Sending error to frontend: {chunk[:100]}")
+                        yield json.dumps({"type": "text", "content": chunk}) + "\n"
+                        break  # Stop processing on error
+                    else:
+                        answer_chunk_count += 1
+                        logger.debug(f"[Chunk {answer_chunk_count}] {chunk[:50]}")
+                        yield json.dumps({"type": "text", "content": chunk}) + "\n"
+            except Exception as e:
+                logger.error(f"❌ Error during streaming: {str(e)}", exc_info=True)
+                error_occurred = True
+                error_message = str(e)
+                error_text = f"❌ Error generating response: {str(e)}"
+                logger.info(f"Sending exception error to frontend: {error_text[:100]}")
+                yield json.dumps({"type": "text", "content": error_text}) + "\n"
+
+            if error_occurred:
+                logger.warning(f"❌ Chat ended with error: {error_message}")
+            else:
+                logger.info(f"✅ Answer stream complete ({answer_chunk_count} chunks)")
+
             # Send end signal
             yield json.dumps({"type": "end"}) + "\n"
 
         except Exception as e:
-            logger.error(f"❌ Error in chat: {str(e)}", exc_info=True)
-            yield json.dumps({"type": "error", "content": str(e)}) + "\n"
+            logger.error(f"❌ Unexpected error in chat: {str(e)}", exc_info=True)
+            try:
+                yield json.dumps({"type": "error", "content": f"Unexpected error: {str(e)}"}) + "\n"
+            except:
+                pass
 
     return StreamingResponse(generate(), media_type="application/x-ndjson")
 
@@ -163,6 +208,49 @@ async def chat(message: MessageRequest):
 def health():
     """Health check endpoint."""
     return {"status": "ok", "service": "Medical RAG API"}
+
+@app.get("/test-llm")
+async def test_llm():
+    """Test endpoint to verify LLM connectivity."""
+    try:
+        from context_assembly import ContextAssembler
+        assembler = ContextAssembler()
+
+        # Try a simple request
+        result = "Starting LLM test...\n"
+        result += f"Endpoint: {assembler.endpoint}\n"
+        result += f"API Key present: {'Yes' if assembler.api_key else 'No'}\n"
+
+        # Try sending a simple request
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {assembler.api_key}"
+        }
+
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "user", "content": "Say 'Hello'"}
+            ],
+            "temperature": 0.2,
+            "max_tokens": 10,
+            "stream": False
+        }
+
+        import requests
+        response = requests.post(
+            assembler.endpoint,
+            json=payload,
+            headers=headers,
+            timeout=15
+        )
+
+        result += f"Response Status: {response.status_code}\n"
+        result += f"Response Text: {response.text[:200]}\n"
+
+        return {"status": "test_completed", "details": result}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "details": str(type(e))}
 
 if __name__ == "__main__":
     uvicorn.run(

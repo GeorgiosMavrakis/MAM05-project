@@ -3,6 +3,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
+import { ErrorMessage } from "@/components/assistant-ui/error-message";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
@@ -35,6 +36,8 @@ import {
 import type { FC } from "react";
 
 export const Thread: FC = () => {
+  console.log("[Thread] Rendering thread component");
+
   return (
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
@@ -46,7 +49,18 @@ export const Thread: FC = () => {
         turnAnchor="top"
         className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
       >
-        <AssistantIf condition={({ thread }) => thread.isEmpty}>
+        <AssistantIf condition={({ thread }) => {
+          console.log("[Thread] isEmpty check:", thread.isEmpty, "Message count:", thread.messages.length);
+          if (thread.messages.length > 0) {
+            console.log("[Thread] Latest message:", {
+              role: thread.messages[thread.messages.length - 1].role,
+              content: thread.messages[thread.messages.length - 1].content.map((p: any) =>
+                p.type === "text" ? p.text.substring(0, 50) : p.type
+              )
+            });
+          }
+          return thread.isEmpty;
+        }}>
           <ThreadWelcome />
         </AssistantIf>
 
@@ -208,6 +222,7 @@ const MessageError: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  console.log("[AssistantMessage] Rendering assistant message");
   return (
     <MessagePrimitive.Root
       className="aui-assistant-message-root fade-in slide-in-from-bottom-1 relative mx-auto w-full max-w-(--thread-max-width) animate-in py-3 duration-150"
@@ -216,7 +231,7 @@ const AssistantMessage: FC = () => {
       <div className="aui-assistant-message-content wrap-break-word px-2 text-foreground leading-relaxed">
         <MessagePrimitive.Parts
           components={{
-            Text: MarkdownText,
+            Text: ErrorAwareText,
             Reasoning,
             ReasoningGroup,
             tools: { Fallback: ToolFallback },
@@ -231,6 +246,63 @@ const AssistantMessage: FC = () => {
       </div>
     </MessagePrimitive.Root>
   );
+};
+
+// Custom text component that detects errors
+const ErrorAwareText: FC<{ text: string }> = ({ text }) => {
+  console.log("[ErrorAwareText] ===== COMPONENT CALLED =====");
+  console.log("[ErrorAwareText] Full text:", text);
+  console.log("[ErrorAwareText] Text length:", text.length);
+  console.log("[ErrorAwareText] First 10 chars:", text.substring(0, 10));
+
+  // Check if text contains error indicator
+  const startsWithError = text.startsWith("❌");
+  const hasAPIError = text.includes("API Error");
+  const hasError = text.includes("Error:");
+  const hasConnectionError = text.includes("APIConnectionError");
+
+  console.log("[ErrorAwareText] startsWithError:", startsWithError);
+  console.log("[ErrorAwareText] hasAPIError:", hasAPIError);
+  console.log("[ErrorAwareText] hasError:", hasError);
+  console.log("[ErrorAwareText] hasConnectionError:", hasConnectionError);
+
+  const isError = startsWithError || hasAPIError || hasError || hasConnectionError;
+
+  console.log("[ErrorAwareText] FINAL isError:", isError);
+
+  if (isError) {
+    console.log("[ErrorAwareText] ===== RENDERING ERROR UI =====");
+    return (
+      <div className="my-2 rounded-lg border-l-4 border-destructive bg-destructive/10 p-4 text-destructive dark:bg-destructive/5 dark:text-red-200">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex-shrink-0">
+            <svg
+              className="h-5 w-5"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                clipRule="evenodd"
+              />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed font-semibold">
+              Error
+            </p>
+            <p className="whitespace-pre-wrap break-words text-sm leading-relaxed mt-1">
+              {text}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("[ErrorAwareText] ===== RENDERING NORMAL TEXT =====");
+  return <MarkdownText text={text} />;
 };
 
 const AssistantActionBar: FC = () => {

@@ -20,11 +20,27 @@ import requests
 from dotenv import load_dotenv
 import os
 from dataclasses import dataclass
+import logging
 
 from retriever import retrieve
 
-load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+# Load environment variables from .env file
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+logger.info(f"[ENV] Looking for .env at: {env_path}")
+logger.info(f"[ENV] .env file exists: {os.path.exists(env_path)}")
+
+load_dotenv(dotenv_path=env_path, override=True)
 API_KEY = os.getenv("API_KEY")
+
+logger.info(f"[ENV] API_KEY loaded: {bool(API_KEY)}")
+if API_KEY:
+    logger.info(f"[ENV] API_KEY first 20 chars: {API_KEY[:20]}...")
+else:
+    logger.warning("[ENV] WARNING: API_KEY is not set!")
 
 
 @dataclass
@@ -53,6 +69,20 @@ class ContextAssembler:
         """Initialize the context assembler."""
         self.api_key = API_KEY
         self.endpoint = "https://ai-research-proxy.azurewebsites.net/v1/chat/completions"
+
+        # Validation and logging
+        logger.info(f"[ContextAssembler] Initializing...")
+        logger.info(f"[ContextAssembler] API Key set: {bool(self.api_key)}")
+        logger.info(f"[ContextAssembler] Endpoint: {self.endpoint}")
+
+        if not self.api_key:
+            logger.error("[ContextAssembler] ERROR: API_KEY is not set!")
+            raise ValueError("API_KEY environment variable is not set")
+        if not self.endpoint:
+            logger.error("[ContextAssembler] ERROR: Endpoint is not configured!")
+            raise ValueError("Endpoint is not configured")
+
+        logger.info(f"[ContextAssembler] Successfully initialized")
 
     def assemble_context(
         self,
@@ -184,6 +214,9 @@ class ContextAssembler:
         Yields:
             Streaming chunks of text
         """
+        import logging
+        logger = logging.getLogger(__name__)
+
         if system_prompt is None:
             system_prompt = self._get_default_system_prompt()
 
@@ -196,7 +229,7 @@ class ContextAssembler:
             }
 
             payload = {
-                "model": "gpt-4o-mini",
+                "model": "gpt-4.1-mini",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -205,12 +238,23 @@ class ContextAssembler:
                 "stream": True
             }
 
+            logger.info(f"[LLM] Preparing request...")
+            logger.info(f"[LLM] Endpoint: {self.endpoint}")
+            logger.info(f"[LLM] Model: {payload['model']}")
+            logger.info(f"[LLM] System prompt length: {len(system_prompt)}")
+            logger.info(f"[LLM] User prompt length: {len(user_prompt)}")
+            logger.info(f"[LLM] Total payload size: {len(json.dumps(payload))} bytes")
+            logger.info(f"[LLM] Sending streaming request...")
+
             response = requests.post(
                 self.endpoint,
                 json=payload,
                 headers=headers,
-                stream=True
+                stream=True,
+                timeout=60
             )
+
+            logger.info(f"[LLM] Response status: {response.status_code}")
             response.raise_for_status()
 
             # Stream response tokens
@@ -227,8 +271,28 @@ class ContextAssembler:
                         except json.JSONDecodeError:
                             pass
 
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[LLM] HTTP Error: {e.response.status_code}")
+            logger.error(f"[LLM] Response text: {e.response.text}")
+            logger.error(f"[LLM] Request URL: {e.response.url}")
+            logger.error(f"[LLM] Request headers: {e.response.request.headers}")
+            logger.error(f"[LLM] Request body size: {len(e.response.request.body) if e.response.request.body else 0}")
+            # Return the actual error response from the API
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('error', {}).get('message', str(error_data))
+                yield f"API Error {e.response.status_code}: {error_msg}"
+            except:
+                yield f"API Error {e.response.status_code}: {e.response.reason}"
+        except requests.exceptions.Timeout as e:
+            logger.error(f"[LLM] Request timeout: {str(e)}")
+            yield "Error: Request timeout - LLM took too long to respond"
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"[LLM] Connection error: {str(e)}")
+            yield "Error: Cannot connect to LLM service"
         except Exception as e:
-            yield f"Error streaming response: {str(e)}"
+            logger.error(f"[LLM] Unexpected error: {str(e)}", exc_info=True)
+            yield f"Error: {str(e)}"
 
     # ═════════════════════════════════════════════════════════════
     # HELPER METHODS
