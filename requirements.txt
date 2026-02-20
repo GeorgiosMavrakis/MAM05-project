@@ -4,7 +4,7 @@ uvicorn[standard]==0.27.0
 pydantic==2.5.3
 
 # Vector Database & Embeddings
-qdrant-client==1.7.3
+qdrant-client>=1.17.0
 sentence-transformers==2.3.1
 
 # Machine Learning & NLP
