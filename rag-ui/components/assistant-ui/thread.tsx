@@ -127,9 +127,9 @@ const SUGGESTIONS = [
     prompt: "Explain the side effects of aspirin",
   },
   {
-    title: "Can I take penicillin",
+    title: "Can I take ibuprofen",
     label: "while pregnant?",
-    prompt: "Can I take penicillin while pregnant?",
+    prompt: "Can I take ibuprofen while pregnant?",
   },
 ] as const;
 
