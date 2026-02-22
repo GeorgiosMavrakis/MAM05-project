@@ -87,7 +87,7 @@ echo.
 
 echo [6/6] Starting UI Server...
 echo Starting Next.js UI on http://localhost:3000
-start "RAG UI Server" cmd /k "cd /d "%PROJECT_DIR%\rag-ui" && echo Starting UI Server... && npm start"
+start "RAG UI Server" cmd /k "cd /d "%PROJECT_DIR%\rag-ui" && echo Starting UI Server... && npm run dev"
 echo UI Server starting...
 echo.
 

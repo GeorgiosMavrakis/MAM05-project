@@ -307,7 +307,7 @@ async def chat(message: MessageRequest):
 
                 # Log source references for troubleshooting (not sent to UI)
                 logger.info(f"📚 Sources used ({len(text_chunks)} total):")
-                for i, chunk in enumerate(text_chunks[:10], 1):
+                for i, chunk in enumerate(text_chunks[:30], 1):  # to see all citations
                     chunk_id = chunk.get("id", "unknown")
                     chunk_text = chunk.get("text", "")[:150]
                     logger.info(f"  {i}. {chunk_id}: {chunk_text}...")

@@ -169,7 +169,7 @@ export function useThreadPersistence(
         return;
       }
 
-        // Filter out archived threads - only restore active threads
+      // Filter out archived threads - only restore active threads
       const activeThreads = data.threads.filter((thread) => !thread.archived);
 
       if (activeThreads.length === 0) {
@@ -189,15 +189,39 @@ export function useThreadPersistence(
         }
       }
 
-      console.log("[ThreadPersistence] Restoring", activeThreads.length, "active thread(s)");
+      // ── VALIDATION: filter out threads with malformed messages (missing role) ──
+      const validThreads = activeThreads.filter((thread) => {
+        const state = thread.state as any;
+        if (!state?.messages || !Array.isArray(state.messages)) return true;
+        const allValid = state.messages.every(
+          (msg: any) => msg && typeof msg.role === "string"
+        );
+        if (!allValid) {
+          console.warn(
+            "[ThreadPersistence] Dropping thread with invalid messages (missing role):",
+            thread.title
+          );
+        }
+        return allValid;
+      });
+
+      if (validThreads.length === 0) {
+        console.warn(
+          "[ThreadPersistence] All saved threads have invalid messages, clearing storage"
+        );
+        window.localStorage.removeItem(storageKey);
+        return;
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
+      console.log("[ThreadPersistence] Restoring", validThreads.length, "active thread(s)");
       isRestoringRef.current = true;
 
       try {
-        // Restore only active threads
         const restoredThreadIds: string[] = [];
 
         // Restore first thread into current/main thread
-        const firstThread = activeThreads[0];
+        const firstThread = validThreads[0];
         runtime.thread.importExternalState(firstThread.state);
         const currentThreadId = runtime.thread.getState().threadId;
         restoredThreadIds.push(currentThreadId);
@@ -208,19 +232,16 @@ export function useThreadPersistence(
         console.log("[ThreadPersistence] Restored thread 1:", firstThread.title);
 
         // Create and restore remaining threads
-        for (let i = 1; i < activeThreads.length; i++) {
-          const threadData = activeThreads[i];
+        for (let i = 1; i < validThreads.length; i++) {
+          const threadData = validThreads[i];
 
           try {
-            // Create new thread
             await runtime.threadList.switchToNewThread();
             const newThreadId = runtime.thread.getState().threadId;
             restoredThreadIds.push(newThreadId);
 
-            // Import state
             runtime.thread.importExternalState(threadData.state);
 
-            // Restore title
             if (threadData.title) {
               await runtime.threadList.getItemById(newThreadId).rename(threadData.title);
             }
@@ -238,7 +259,7 @@ export function useThreadPersistence(
           console.log("[ThreadPersistence] Switched to thread at index", data.currentThreadIndex);
         }
 
-        lastThreadCountRef.current = activeThreads.length;
+        lastThreadCountRef.current = validThreads.length;
         console.log("[ThreadPersistence] Restoration complete");
       } catch (error) {
         console.error("[ThreadPersistence] Error during restoration:", error);
@@ -263,4 +284,3 @@ export function useThreadPersistence(
     };
   }, [runtime, persist]);
 }
-

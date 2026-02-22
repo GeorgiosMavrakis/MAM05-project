@@ -17,7 +17,7 @@ timeout /t 3 /nobreak >nul
 
 echo [2/2] Starting UI Server...
 echo Starting Next.js UI on http://localhost:3000
-start "RAG UI Server" cmd /k "cd /d "%PROJECT_DIR%\rag-ui" && echo Starting UI Server... && npm start"
+start "RAG UI Server" cmd /k "cd /d "%PROJECT_DIR%\rag-ui" && echo Starting UI Server... && npm run dev"
 
 echo ========================================
 echo Waiting for servers to start...

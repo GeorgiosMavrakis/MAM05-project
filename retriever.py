@@ -34,7 +34,7 @@ RERANKER_ON       = True  # If False, skip cross-encoder and keep top RERANK_TOP
 # lower-ranked one is dropped. Tune between 0.0 (drop nothing) and 1.0
 # (only drop exact copies). 0.85 removes paraphrased generics while
 # keeping genuinely different sections of the same drug label.
-DEDUP_THRESHOLD   = 1
+DEDUP_THRESHOLD   = 1  # Potential bug here, keep it 1
 
 QDRANT_TIMEOUT    = 120.0  # seconds — increase if the VM/network is slow
 QDRANT_RETRIES    = 3      # number of attempts before giving up
