@@ -1,22 +1,22 @@
 # Core API Framework
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-pydantic==2.5.3
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.3
 
 # Vector Database & Embeddings
 qdrant-client>=1.17.0
-sentence-transformers==2.3.1
+sentence-transformers>=2.3.1
 
 # Machine Learning & NLP
 torch>=2.0.0
 transformers>=4.36.0
 
 # Utilities
-python-dotenv==1.0.0
+python-dotenv>=1.0.0
 requests>=2.31.0
 
 # Logging & Monitoring
-python-multipart==0.0.6
+python-multipart>=0.0.6
 
 # Optional: For better performance
 numpy>=1.24.0

@@ -196,27 +196,15 @@ async def chat(message: MessageRequest):
             else:
                 logger.info(f"✅ Answer stream complete ({answer_chunk_count} chunks)")
 
-                # Send source references in a clean format
-                logger.info(f"📚 Sending {len(text_chunks)} source references")
-
-                # Send sources section header
-                yield json.dumps({
-                    "type": "text",
-                    "content": "\n\n---\n\n### 📚 Sources\n\n"
-                }) + "\n"
-
-                # Send each source as a collapsible card
+                # Log source references for troubleshooting (not sent to UI)
+                logger.info(f"📚 Sources used ({len(text_chunks)} total):")
                 for i, chunk in enumerate(text_chunks[:10], 1):
                     chunk_id = chunk.get("id", "unknown")
                     chunk_text = chunk.get("text", "")[:150]
+                    logger.info(f"  {i}. {chunk_id}: {chunk_text}...")
 
-                    # Format as a compact citation
-                    source_markdown = f"**{i}.** `{chunk_id}`\n\n"
+                # Sources are now only logged, not sent to frontend
 
-                    yield json.dumps({
-                        "type": "text",
-                        "content": source_markdown
-                    }) + "\n"
 
         except Exception as e:
             logger.error(f"❌ Unexpected error in chat: {str(e)}", exc_info=True)

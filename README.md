@@ -97,7 +97,7 @@ This script will:
 
 **API Server:**
 ```bash
-uvicorn API:app --host 0.0.0.0 --port 8000 --reload
+python -m uvicorn API:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 **UI Server:**
@@ -191,3 +191,33 @@ For development and testing:
 2. Run the UI server with `npm run dev`
 3. Access UI at `http://localhost:3000`
 4. API available at `http://localhost:8000`
+
+## Troubleshooting
+
+### "uvicorn is not recognized" Error
+
+If you get this error when running `uvicorn` directly in PowerShell:
+```
+'uvicorn' is not recognized as an internal or external command
+```
+
+**Solution:** Use Python's module execution instead:
+```bash
+python -m uvicorn API:app --host 0.0.0.0 --port 8000 --reload
+```
+
+This works because Python can find the `uvicorn` module even if it's not in your system PATH.
+
+**Alternative:** Add Python Scripts to your PATH permanently:
+1. Find your Python Scripts directory:
+   ```bash
+   python -c "import site; print(site.USER_SITE.replace('site-packages', 'Scripts'))"
+   ```
+2. Copy the output path
+3. Press `Win + X`, then select "System"
+4. Click "Advanced system settings" → "Environment Variables"
+5. Click "New" under "User variables"
+6. Variable name: `PATH`
+7. Variable value: Paste the Scripts path
+8. Click OK and restart PowerShell
+
