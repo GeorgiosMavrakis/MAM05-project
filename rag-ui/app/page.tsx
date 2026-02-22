@@ -24,6 +24,7 @@ import {
 import { useThreadPersistence } from "@/lib/hooks/use-thread-persistence";
 import { useAutoThreadTitle } from "@/lib/hooks/use-auto-thread-title";
 import { useState, useEffect } from "react";
+import { DisclaimerDialog } from "@/components/disclaimer-dialog";
 
 export default function Home() {
   const runtime = useChatRuntime({
@@ -79,6 +80,7 @@ export default function Home() {
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
+      <DisclaimerDialog />
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
           <ThreadListSidebar />

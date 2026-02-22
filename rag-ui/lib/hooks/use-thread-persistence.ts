@@ -136,6 +136,7 @@ export function useThreadPersistence(
       try {
         window.localStorage.setItem(storageKey, JSON.stringify(payload));
         lastThreadCountRef.current = currentThreadCount;
+        console.log("[ThreadPersistence] Saved", threads.length, "thread(s)");
       } catch (error) {
         console.error("[ThreadPersistence] Failed to persist threads", error);
       }
@@ -180,34 +181,57 @@ export function useThreadPersistence(
         }
       }
 
-      console.log("[ThreadPersistence] Restoring", data.threads.length, "thread(s) - FAST MODE");
+      console.log("[ThreadPersistence] Restoring", data.threads.length, "thread(s)");
       isRestoringRef.current = true;
 
       try {
-        // FAST MODE: Only restore the most recent thread (the one user was viewing)
-        // This prevents the freezing caused by creating multiple threads
-        const targetIndex = Math.min(
-          Math.max(0, data.currentThreadIndex),
-          data.threads.length - 1,
-        );
-        const targetThread = data.threads[targetIndex];
+        // Restore all threads
+        const restoredThreadIds: string[] = [];
 
-        if (targetThread) {
-          // Import the thread state into the current thread
-          runtime.thread.importExternalState(targetThread.state);
+        // Restore first thread into current/main thread
+        const firstThread = data.threads[0];
+        runtime.thread.importExternalState(firstThread.state);
+        const currentThreadId = runtime.thread.getState().threadId;
+        restoredThreadIds.push(currentThreadId);
 
-          // Set the title
-          const currentThreadId = runtime.thread.getState().threadId;
-          if (targetThread.title) {
-            await runtime.threadList.getItemById(currentThreadId).rename(targetThread.title);
+        if (firstThread.title) {
+          await runtime.threadList.getItemById(currentThreadId).rename(firstThread.title);
+        }
+        console.log("[ThreadPersistence] Restored thread 1:", firstThread.title);
+
+        // Create and restore remaining threads
+        for (let i = 1; i < data.threads.length; i++) {
+          const threadData = data.threads[i];
+
+          try {
+            // Create new thread
+            await runtime.threadList.switchToNewThread();
+            const newThreadId = runtime.thread.getState().threadId;
+            restoredThreadIds.push(newThreadId);
+
+            // Import state
+            runtime.thread.importExternalState(threadData.state);
+
+            // Restore title
+            if (threadData.title) {
+              await runtime.threadList.getItemById(newThreadId).rename(threadData.title);
+            }
+
+            console.log("[ThreadPersistence] Restored thread", i + 1, ":", threadData.title);
+          } catch (error) {
+            console.error("[ThreadPersistence] Failed to restore thread", i + 1, error);
           }
-
-          console.log("[ThreadPersistence] Restored most recent thread");
         }
 
-        // Initialize thread count
+        // Switch back to the originally active thread
+        if (data.currentThreadIndex >= 0 && data.currentThreadIndex < restoredThreadIds.length) {
+          const targetThreadId = restoredThreadIds[data.currentThreadIndex];
+          await runtime.threadList.switchToThread(targetThreadId);
+          console.log("[ThreadPersistence] Switched to thread at index", data.currentThreadIndex);
+        }
+
         lastThreadCountRef.current = data.threads.length;
-        console.log("[ThreadPersistence] Restoration complete (fast mode)");
+        console.log("[ThreadPersistence] Restoration complete");
       } catch (error) {
         console.error("[ThreadPersistence] Error during restoration:", error);
         window.localStorage.removeItem(storageKey);
@@ -231,3 +255,4 @@ export function useThreadPersistence(
     };
   }, [runtime, persist]);
 }
+
