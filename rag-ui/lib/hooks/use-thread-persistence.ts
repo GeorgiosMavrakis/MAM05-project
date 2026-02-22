@@ -169,9 +169,17 @@ export function useThreadPersistence(
         return;
       }
 
+        // Filter out archived threads - only restore active threads
+      const activeThreads = data.threads.filter((thread) => !thread.archived);
+
+      if (activeThreads.length === 0) {
+        console.log("[ThreadPersistence] No active threads to restore (all archived)");
+        return;
+      }
+
       // If we only have 1 thread and it has no messages, don't restore it
-      if (data.threads.length === 1) {
-        const singleThread = data.threads[0];
+      if (activeThreads.length === 1) {
+        const singleThread = activeThreads[0];
         const threadState = singleThread.state as any;
 
         if (threadState?.messages && Array.isArray(threadState.messages) && threadState.messages.length === 0) {
@@ -181,15 +189,15 @@ export function useThreadPersistence(
         }
       }
 
-      console.log("[ThreadPersistence] Restoring", data.threads.length, "thread(s)");
+      console.log("[ThreadPersistence] Restoring", activeThreads.length, "active thread(s)");
       isRestoringRef.current = true;
 
       try {
-        // Restore all threads
+        // Restore only active threads
         const restoredThreadIds: string[] = [];
 
         // Restore first thread into current/main thread
-        const firstThread = data.threads[0];
+        const firstThread = activeThreads[0];
         runtime.thread.importExternalState(firstThread.state);
         const currentThreadId = runtime.thread.getState().threadId;
         restoredThreadIds.push(currentThreadId);
@@ -200,8 +208,8 @@ export function useThreadPersistence(
         console.log("[ThreadPersistence] Restored thread 1:", firstThread.title);
 
         // Create and restore remaining threads
-        for (let i = 1; i < data.threads.length; i++) {
-          const threadData = data.threads[i];
+        for (let i = 1; i < activeThreads.length; i++) {
+          const threadData = activeThreads[i];
 
           try {
             // Create new thread
@@ -230,7 +238,7 @@ export function useThreadPersistence(
           console.log("[ThreadPersistence] Switched to thread at index", data.currentThreadIndex);
         }
 
-        lastThreadCountRef.current = data.threads.length;
+        lastThreadCountRef.current = activeThreads.length;
         console.log("[ThreadPersistence] Restoration complete");
       } catch (error) {
         console.error("[ThreadPersistence] Error during restoration:", error);

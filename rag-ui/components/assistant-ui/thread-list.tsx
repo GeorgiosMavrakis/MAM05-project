@@ -8,11 +8,10 @@ import {
   ThreadListPrimitive,
   useThreadListItemRuntime,
 } from "@assistant-ui/react";
-import { ArchiveIcon, MoreHorizontalIcon, PlusIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, Trash2, MoreHorizontalIcon, PencilIcon } from "lucide-react";
 import type { FC } from "react";
 import { useState } from "react";
 import * as React from "react";
-import { setDeletingLastThread } from "@/lib/hooks/use-thread-persistence";
 
 export const ThreadList: FC = () => {
   return (
@@ -65,7 +64,7 @@ const ThreadListItem: FC = () => {
   const item = useThreadListItemRuntime({ optional: true });
 
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 items-center gap-2 rounded-lg transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:bg-muted">
+    <ThreadListItemPrimitive.Root className="aui-thread-list-item group flex h-9 items-center gap-1 rounded-lg transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:bg-muted">
       {isEditing ? (
         <ThreadListItemRenameForm
           initialValue={editValue}
@@ -82,13 +81,50 @@ const ThreadListItem: FC = () => {
           <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center truncate px-3 text-start text-sm">
             <ThreadListItemPrimitive.Title fallback="New Chat" />
           </ThreadListItemPrimitive.Trigger>
-          <ThreadListItemMore onRenameClick={() => {
-            const titleElement = document.querySelector(
-              '.aui-thread-list-item-trigger .aui-thread-list-item-title'
-            );
-            setEditValue(titleElement?.textContent || "");
-            setIsEditing(true);
-          }} />
+
+          {/* More menu with rename and archive options */}
+          <ThreadListItemMorePrimitive.Root>
+            <ThreadListItemMorePrimitive.Trigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="aui-thread-list-item-more mr-1 size-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:opacity-100 hover:bg-accent"
+              >
+                <MoreHorizontalIcon className="size-4" />
+                <span className="sr-only">More options</span>
+              </Button>
+            </ThreadListItemMorePrimitive.Trigger>
+            <ThreadListItemMorePrimitive.Content
+              side="bottom"
+              align="start"
+              className="aui-thread-list-item-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+            >
+              {/* Rename option */}
+              <ThreadListItemMorePrimitive.Item
+                onClick={() => {
+                  const titleElement = document.querySelector(
+                    '.aui-thread-list-item-trigger .aui-thread-list-item-title'
+                  );
+                  setEditValue(titleElement?.textContent || "");
+                  setIsEditing(true);
+                }}
+                className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+              >
+                <PencilIcon className="size-4" />
+                Rename
+              </ThreadListItemMorePrimitive.Item>
+
+              {/* Delete option */}
+              <ThreadListItemPrimitive.Archive asChild>
+                <button
+                  className="flex w-full cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-destructive hover:text-destructive-foreground focus:bg-destructive focus:text-destructive-foreground"
+                >
+                  <Trash2 className="size-4" />
+                  Delete
+                </button>
+              </ThreadListItemPrimitive.Archive>
+            </ThreadListItemMorePrimitive.Content>
+          </ThreadListItemMorePrimitive.Root>
         </>
       )}
     </ThreadListItemPrimitive.Root>
@@ -137,77 +173,4 @@ const ThreadListItemRenameForm: FC<{
   );
 };
 
-const ThreadListItemMore: FC<{ onRenameClick: () => void }> = ({ onRenameClick }) => {
-  const item = useThreadListItemRuntime({ optional: true });
 
-  const handleDelete = async () => {
-    if (item && confirm("Are you sure you want to delete this conversation?")) {
-      // Check if this is the last thread before deletion
-      const runtime = (item as any)._internal?.runtime;
-      let wasLastThread = false;
-
-      if (runtime) {
-        const threadList = runtime.threadList.getState();
-        const totalThreads = threadList.threadIds.length + threadList.archivedThreadIds.length;
-        wasLastThread = totalThreads === 1;
-        console.log("[Delete] Total threads before deletion:", totalThreads);
-
-        if (wasLastThread) {
-          // Set the global flag to prevent persist from running
-          setDeletingLastThread(true);
-
-          // Immediately clear localStorage before deletion
-          try {
-            window.localStorage.removeItem("assistant_ui_threads_v1");
-            console.log("[Delete] Cleared localStorage before deletion");
-          } catch (error) {
-            console.error("[Delete] Failed to clear localStorage", error);
-          }
-        }
-      }
-
-      await item.delete();
-
-      // If this was the last thread, refresh the page to avoid runtime errors
-      if (wasLastThread) {
-        console.log("[Delete] Last thread deleted, refreshing page...");
-        window.location.href = "/";
-      }
-    }
-  };
-
-  return (
-    <ThreadListItemMorePrimitive.Root>
-      <ThreadListItemMorePrimitive.Trigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="aui-thread-list-item-more mr-2 size-7 p-0 opacity-0 transition-opacity group-hover:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
-        >
-          <MoreHorizontalIcon className="size-4" />
-          <span className="sr-only">More options</span>
-        </Button>
-      </ThreadListItemMorePrimitive.Trigger>
-      <ThreadListItemMorePrimitive.Content
-        side="bottom"
-        align="start"
-        className="aui-thread-list-item-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-      >
-        <ThreadListItemMorePrimitive.Item
-          onClick={onRenameClick}
-          className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-        >
-          <PencilIcon className="size-4" />
-          Rename
-        </ThreadListItemMorePrimitive.Item>
-        <ThreadListItemMorePrimitive.Item
-          onClick={handleDelete}
-          className="aui-thread-list-item-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-destructive hover:text-destructive-foreground focus:bg-destructive focus:text-destructive-foreground"
-        >
-          <Trash2Icon className="size-4" />
-          Delete
-        </ThreadListItemMorePrimitive.Item>
-      </ThreadListItemMorePrimitive.Content>
-    </ThreadListItemMorePrimitive.Root>
-  );
-};

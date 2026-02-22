@@ -36,39 +36,6 @@ python --version
 echo Python found!
 echo.
 
-echo [2.5/6] Checking Rust/Cargo installation...
-where cargo >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo WARNING: Rust/Cargo is not installed!
-    echo Attempting to install Rust automatically...
-    echo.
-    powershell -Command "Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile $env:USERPROFILE\rustup-init.exe"
-    if %ERRORLEVEL% NEQ 0 (
-        echo ERROR: Failed to download Rust installer!
-        echo Please install Rust manually from https://rustup.rs/
-        echo.
-        pause
-        exit /b 1
-    )
-    echo Running Rust installer...
-    "%USERPROFILE%\rustup-init.exe" -y
-    if %ERRORLEVEL% NEQ 0 (
-        echo ERROR: Failed to install Rust!
-        echo.
-        pause
-        exit /b 1
-    )
-    echo Please restart your terminal after Rust installation.
-    echo Rust has been installed, re-run this batch file.
-    echo.
-    pause
-    exit /b 1
-)
-cargo --version
-rustc --version
-echo Rust/Cargo found!
-echo.
-
 echo [3/6] Installing/Checking Python dependencies...
 if not exist "requirements.txt" (
     echo WARNING: requirements.txt not found. Skipping Python dependency check.
