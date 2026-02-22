@@ -1,4 +1,4 @@
-# MAM05-project
+# Medication Assistant
 
 A Retrieval-Augmented Generation (RAG) system for pharmaceutical drug information, leveraging FDA drug labels and semantic search to provide accurate, cited answers about medication usage, side effects, and safety information.
 
@@ -45,12 +45,17 @@ This script will:
 
 Use this the first time or whenever dependencies may be missing. **Run these two commands in your terminal from the project folder:**
 
-**Command 1:** Make the script executable
+**Command 1:** Start Terminal and navigate to the project folder
+```bash
+cd ~/Downloads/MAM05-project/Medication-Assistant
+```
+
+**Command 3:** Make the script executable
 ```bash
 chmod +x ./install_medication_assistant_mac.sh
 ```
 
-**Command 2:** Run the installation and startup script
+**Command 4:** Run the installation and startup script
 ```bash
 ./install_medication_assistant_mac.sh
 ```
@@ -78,12 +83,17 @@ This script will:
 
 Use this when dependencies are already installed. **Run these two commands in your terminal from the project folder:**
 
-**Command 1:** Make the script executable
+**Command 1:** Start Terminal and navigate to the project folder
+```bash
+cd ~/Downloads/MAM05-project/Medication-Assistant
+```
+
+**Command 2:** Make the script executable
 ```bash
 chmod +x ./start_medication_assistant_mac.sh
 ```
 
-**Command 2:** Run the startup script
+**Command 3:** Run the startup script
 ```bash
 ./start_medication_assistant_mac.sh
 ```
@@ -176,13 +186,6 @@ Next.js-based React UI (`rag-ui/`) with:
 - Thread management
 - Markdown rendering
 - Context display
-- **Source references**: Displays vector IDs in an expandable section
-  - After each assistant response, a "View Sources" expandable section appears
-  - Sources shown as numbered list with vector IDs (e.g., `[1] ba4525b4-4d70-4eed-a195-b4bdaff99f23_precautions_7`)
-  - Each source has a preview that can be expanded to see text excerpt
-  - Uses HTML `<details>` tags for native expand/collapse functionality
-  - Limited to top 10 most relevant sources
-  - Clean markdown rendering without custom components
 
 ## Development
 
