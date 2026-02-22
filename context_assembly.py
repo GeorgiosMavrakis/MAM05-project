@@ -229,7 +229,7 @@ class ContextAssembler:
             }
 
             payload = {
-                "model": "gpt-4o-mini",
+                "model": "gpt-4.1",
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -347,7 +347,7 @@ class ContextAssembler:
             messages.append({"role": "user", "content": user_prompt})
 
             payload = {
-                "model": "gpt-4o-mini",
+                "model": "gpt-4.1",
                 "messages": messages,
                 "temperature": 0.2,
                 "stream": True
@@ -560,13 +560,13 @@ Remember:
         }
 
         payload = {
-            "model": "gpt-4o-mini",
+            "model": "gpt-4.1",
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.2,  # Lower temperature for consistency
-            "max_tokens": 2500  # Increased to allow comprehensive answers
+            "max_tokens": 5000  # Increased to allow comprehensive answers
         }
 
         response = requests.post(

@@ -353,7 +353,7 @@ async def test_llm():
         }
 
         payload = {
-            "model": "gpt-4o-mini",
+            "model": "gpt-4.1",
             "messages": [
                 {"role": "user", "content": "Say 'Hello'"}
             ],
