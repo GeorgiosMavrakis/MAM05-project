@@ -294,6 +294,120 @@ class ContextAssembler:
             logger.error(f"[LLM] Unexpected error: {str(e)}", exc_info=True)
             yield f"Error: {str(e)}"
 
+    def generate_answer_streaming_with_history(
+        self,
+        context: str,
+        query: str,
+        chunks: List[Any],
+        chat_history: List[Dict[str, str]] = None,
+        system_prompt: Optional[str] = None
+    ):
+        """
+        Stream LLM response with full chat history for context-aware answers.
+
+        Args:
+            context: Formatted context from Step 6
+            query: Current user question
+            chunks: Retrieved chunk objects
+            chat_history: List of previous messages [{"role": "user"/"assistant", "content": "..."}, ...]
+            system_prompt: Optional custom system prompt
+
+        Yields:
+            Streaming chunks of text
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+
+        if system_prompt is None:
+            system_prompt = self._get_default_system_prompt()
+
+        user_prompt = self._build_user_prompt(context, query)
+
+        try:
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}"
+            }
+
+            # Build messages list including chat history
+            messages = []
+
+            # Add system prompt
+            messages.append({"role": "system", "content": system_prompt})
+
+            # Add chat history (excluding the current message which will be added as user message)
+            if chat_history:
+                for msg in chat_history:
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if content:  # Only add non-empty messages
+                        messages.append({"role": role, "content": content})
+
+            # Add current user message with context
+            messages.append({"role": "user", "content": user_prompt})
+
+            payload = {
+                "model": "gpt-4o-mini",
+                "messages": messages,
+                "temperature": 0.2,
+                "stream": True
+            }
+
+            logger.info(f"[LLM] Preparing streaming request with history...")
+            logger.info(f"[LLM] Total messages in context: {len(messages)}")
+            logger.info(f"[LLM] Chat history length: {len(chat_history) if chat_history else 0}")
+            logger.info(f"[LLM] Endpoint: {self.endpoint}")
+            logger.info(f"[LLM] Model: {payload['model']}")
+            logger.info(f"[LLM] Sending streaming request...")
+
+            response = requests.post(
+                self.endpoint,
+                json=payload,
+                headers=headers,
+                stream=True,
+                timeout=60
+            )
+
+            logger.info(f"[LLM] Response status: {response.status_code}")
+            response.raise_for_status()
+
+            # Stream response tokens
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8') if isinstance(line, bytes) else line
+                    if line_str.startswith('data: '):
+                        try:
+                            chunk_data = json.loads(line_str[6:])
+                            if chunk_data.get('choices'):
+                                delta = chunk_data['choices'][0].get('delta', {})
+                                if 'content' in delta:
+                                    yield delta['content']
+                        except json.JSONDecodeError:
+                            pass
+
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"[LLM] HTTP Error: {e.response.status_code}")
+            logger.error(f"[LLM] Response text: {e.response.text}")
+            logger.error(f"[LLM] Request URL: {e.response.url}")
+            logger.error(f"[LLM] Request headers: {e.response.request.headers}")
+            logger.error(f"[LLM] Request body size: {len(e.response.request.body) if e.response.request.body else 0}")
+            # Return the actual error response from the API
+            try:
+                error_data = e.response.json()
+                error_msg = error_data.get('error', {}).get('message', str(error_data))
+                yield f"API Error {e.response.status_code}: {error_msg}"
+            except:
+                yield f"API Error {e.response.status_code}: {e.response.reason}"
+        except requests.exceptions.Timeout as e:
+            logger.error(f"[LLM] Request timeout: {str(e)}")
+            yield "Error: Request timeout - LLM took too long to respond"
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"[LLM] Connection error: {str(e)}")
+            yield "Error: Cannot connect to LLM service"
+        except Exception as e:
+            logger.error(f"[LLM] Unexpected error: {str(e)}", exc_info=True)
+            yield f"Error: {str(e)}"
+
     # ═════════════════════════════════════════════════════════════
     # HELPER METHODS
     # ═════════════════════════════════════════════════════════════

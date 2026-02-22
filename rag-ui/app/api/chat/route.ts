@@ -21,6 +21,13 @@ export async function POST(req: Request) {
       return new Response("Empty messages", { status: 400 });
     }
 
+    // Debug: Log the full structure of each message
+    console.log("[RAG Route] ===== FULL MESSAGE STRUCTURE =====");
+    messages.forEach((msg: any, idx: number) => {
+      console.log(`Message ${idx}:`, JSON.stringify(msg, null, 2));
+    });
+    console.log("[RAG Route] ===== END MESSAGE STRUCTURE =====");
+
     // Get the last user message
     const lastMessage = messages[messages.length - 1];
     console.log(
@@ -91,6 +98,39 @@ export async function POST(req: Request) {
       const chatUrl = `${API_ENDPOINT}/chat`;
       console.log(`[RAG Client] Connecting to API: ${chatUrl}`);
 
+      // Helper function to extract text from a message
+      const extractText = (msg: any): string => {
+        if (typeof msg.content === "string") {
+          return msg.content;
+        } else if (Array.isArray(msg.content)) {
+          return msg.content
+            .map((part: any) => part.text || "")
+            .join("");
+        } else if (Array.isArray(msg.parts)) {
+          return msg.parts
+            .map((part: any) => part.text || "")
+            .join("");
+        }
+        return "";
+      };
+
+      // Convert messages to backend format (role + content)
+      const backendMessages = messages.map((msg: any) => ({
+        role: msg.role || "user",
+        content: extractText(msg),
+      }));
+
+      console.log(
+        `[RAG Client] Sending ${backendMessages.length} messages to backend`,
+      );
+
+      // Log each message in history for debugging
+      backendMessages.forEach((msg: any, idx: number) => {
+        console.log(
+          `[RAG Client] Message ${idx} (${msg.role}): ${msg.content.substring(0, 100)}${msg.content.length > 100 ? "..." : ""}`,
+        );
+      });
+
       const backendResponse = await fetch(chatUrl, {
         method: "POST",
         headers: {
@@ -99,6 +139,7 @@ export async function POST(req: Request) {
         },
         body: JSON.stringify({
           content: messageContent,
+          messages: backendMessages,
         }),
         signal: AbortSignal.timeout(API_TIMEOUT),
       });
