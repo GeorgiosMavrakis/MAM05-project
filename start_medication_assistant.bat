@@ -12,7 +12,7 @@ cd /d "%PROJECT_DIR%"
 
 echo [1/2] Starting API Server...
 echo Starting FastAPI on http://localhost:8000
-start "RAG API Server" cmd /k "cd /d "%PROJECT_DIR%" && echo Starting API Server... && uvicorn API:app --host 0.0.0.0 --port 8000 --reload"
+start "RAG API Server" cmd /k "cd /d "%PROJECT_DIR%" && echo Starting API Server... && python -m uvicorn API:app --host 0.0.0.0 --port 8000 --reload"
 timeout /t 3 /nobreak >nul
 
 echo [2/2] Starting UI Server...
